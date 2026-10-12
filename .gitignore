@@ -1,0 +1,14 @@
+node_modules/
+client/dist/
+server/data/
+server/run.log
+server/STATS_KEY.local.txt
+client/vite.log
+.env
+.vscode/
+.DS_Store
+Thumbs.db
+Reference/*.mp4
+reference/*.mp4
+store-art/
+Reference/**/*.mp4

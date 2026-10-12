@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Go Kart Escape Setup</title>
+<style>
+:root { --bg: #f4f6fb; --card: #ffffff; --ink: #1b1d2a; --muted: #5d6478; --line: #e1e5ef; --accent: #2a7cff; --ok: #1e9e4a; --chip: #eef3ff; --off: #9aa0b0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #12141c; --card: #1b1e29; --ink: #eef0f7; --muted: #a2a9bd; --line: #2c3142; --accent: #5aa0ff; --ok: #4cd37c; --chip: #23293a; --off: #6c7386; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1060px; margin: 0 auto; padding: 28px 16px 60px; }
+h1 { font-size: 28px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 34px 0 10px; }
+h2 small { font-size: 13px; color: var(--muted); font-weight: 500; }
+p.sub { color: var(--muted); margin: 0 0 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px 16px; }
+.field { display: grid; grid-template-columns: 210px 1fr auto; gap: 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.field:last-child { border-bottom: none; }
+.label { color: var(--muted); font-weight: 600; padding-top: 2px; }
+.val { white-space: pre-wrap; word-break: break-word; }
+.mono, code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13.5px; }
+button.copy { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 8px; padding: 4px 10px; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+button.copy:hover { border-color: var(--accent); }
+button.copy.done { color: var(--ok); border-color: var(--ok); }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-size: 13px; font-weight: 600; background: var(--chip); }
+tr:last-child td { border-bottom: none; }
+td.on { color: var(--ok); font-weight: 700; white-space: nowrap; }
+td.off { color: var(--off); white-space: nowrap; }
+td.why { color: var(--muted); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0; }
+.tag { border: 1px solid var(--line); background: var(--chip); border-radius: 7px; padding: 2px 9px; font-size: 13px; font-weight: 600; }
+ol.steps { padding-left: 20px; margin: 0; } ol.steps li { margin: 6px 0; }
+@media (max-width: 640px) { .field { grid-template-columns: 1fr auto; } .label { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<main>
+    <h1>+1 Speed Go Kart Escape: Create New Game</h1>
+    <p class="sub">Every field of the bloxity.io Manage Games &rarr; <b>Create New Game</b> form, top to bottom. Click Copy to copy a value. This game has <b>no in-app purchases</b>: karts, upgrades and boosts are all bought with Wins, so the IAP section stays empty.</p>
+
+    <h2>Basic Info</h2>
+    <div class="card">
+    <div class="field"><div class="label">Slug *</div><div class="val mono">speed-go-kart-escape</div><button class="copy" data-v="speed-go-kart-escape">Copy</button></div>
+    <div class="field"><div class="label">Name *</div><div class="val">+1 Speed Go Kart Escape</div><button class="copy" data-v="+1 Speed Go Kart Escape">Copy</button></div>
+    <div class="field"><div class="label">SEO Name (optional)</div><div class="val">+1 Speed Go Kart Escape - Drive, Level Up Your Kart &amp; Jump 16 Stages | Free 3D Racing Game</div><button class="copy" data-v="+1 Speed Go Kart Escape - Drive, Level Up Your Kart &amp; Jump 16 Stages | Free 3D Racing Game">Copy</button></div>
+    <div class="field"><div class="label">Developer</div><div class="val">&#9745; Show developer (your choice)</div><span></span></div>
+    <div class="field"><div class="label">Game Source *</div><div class="val">Choose <b>External URL</b> (not Upload ZIP): the game is hosted by Legion.</div><span></span></div>
+    <div class="field"><div class="label">Game URL</div><div class="val mono">https://speed-go-kart-escape.play.bloxity.io/</div><button class="copy" data-v="https://speed-go-kart-escape.play.bloxity.io/">Copy</button></div>
+    <div class="field"><div class="label">Raw URL (optional)</div><div class="val mono">https://speed-go-kart-escape.play.bloxity.io/</div><button class="copy" data-v="https://speed-go-kart-escape.play.bloxity.io/">Copy</button></div>
+    <div class="field"><div class="label">CG URL (optional)</div><div class="val"><span style="color:var(--off)">Leave empty</span></div><span></span></div>
+    <div class="field"><div class="label">Additional Game Domains</div><div class="val mono">speed-go-kart-escape.play.bloxity.io
+speed-go-kart-escape.dev.play.bloxity.io
+speed-go-kart-escape.host.bloxity.io</div><button class="copy" data-v="speed-go-kart-escape.play.bloxity.io
+speed-go-kart-escape.dev.play.bloxity.io
+speed-go-kart-escape.host.bloxity.io">Copy</button></div>
+    <div class="field"><div class="label">Short Description</div><div class="val">Drive = +Speed, every level = a faster kart! Jump the gaps, dodge the traps and escape 16 stages of the speedway.</div><button class="copy" data-v="Drive = +Speed, every level = a faster kart! Jump the gaps, dodge the traps and escape 16 stages of the speedway.">Copy</button></div>
+    <div class="field"><div class="label">Description</div><div class="val">Hop in your go-kart and drive! Every second you drive gives you +Speed, and every level makes your kart faster. Each stage ends with a giant ramp jump that needs a top speed, and the stages get harder and harder: laser gates, cop patrols, police chases, swinging hammers, mine fields, rolling tyres, crushers, closing walls, slippery ice bridges, rush-hour traffic, lava bridges with meteors, a glitching neon grid, a thunder storm and the rainbow finale. Drift for mini-turbos, hit the nitro, grab the Wins pads at the end of every stage and spend your Wins on 16 go-karts, 6 super cars, Engine, Nitro, Grip and Power upgrades, Speed Rollers and boosts (no in-app purchases!). Rebirth for bigger multipliers and ESCAPE the speedway!</div><button class="copy" data-v="Hop in your go-kart and drive! Every second you drive gives you +Speed, and every level makes your kart faster. Each stage ends with a giant ramp jump that needs a top speed, and the stages get harder and harder: laser gates, cop patrols, police chases, swinging hammers, mine fields, rolling tyres, crushers, closing walls, slippery ice bridges, rush-hour traffic, lava bridges with meteors, a glitching neon grid, a thunder storm and the rainbow finale. Drift for mini-turbos, hit the nitro, grab the Wins pads at the end of every stage and spend your Wins on 16 go-karts, 6 super cars, Engine, Nitro, Grip and Power upgrades, Speed Rollers and boosts (no in-app purchases!). Rebirth for bigger multipliers and ESCAPE the speedway!">Copy</button></div>
+    </div>
+
+    <h2>Checkboxes</h2>
+    <div class="tablewrap"><table><thead><tr><th>Option</th><th>Set to</th><th>Why</th></tr></thead><tbody>
+        <tr><td>SDK Support</td><td class="on">&#9745; ON</td><td class="why">The game loads the Bloxity SDK (login, avatars, friends, chat, emotes).</td></tr>
+        <tr><td>LoadingEnd Support</td><td class="on">&#9745; ON</td><td class="why">The game calls loadingEnd() as soon as it has joined a server.</td></tr>
+        <tr><td>Active</td><td class="on">&#9745; ON</td><td class="why">So players can find it.</td></tr>
+        <tr><td>Show Chat</td><td class="on">&#9745; ON</td><td class="why">Chat bubbles appear over players.</td></tr>
+        <tr><td>Show Voice</td><td class="on">&#9745; ON</td><td class="why">Fine for a social game.</td></tr>
+        <tr><td>Mobile Force Landscape</td><td class="on">&#9745; ON</td><td class="why">Driving with the stick and the HOP / NITRO buttons needs the width.</td></tr>
+    </tbody></table></div>
+    <div class="card" style="margin-top:12px">
+    <div class="field"><div class="label">Engine</div><div class="val">three.js (only an admin can set this)</div><span></span></div>
+    <div class="field"><div class="label">Page Layout</div><div class="val">Classic</div><span></span></div>
+    </div>
+
+    <h2>Tags</h2>
+    <div class="card"><div class="tags"><span class="tag">+1 Games</span><span class="tag">Racing</span><span class="tag">Driving</span><span class="tag">Karts</span><span class="tag">Obby</span><span class="tag">Simulation</span><span class="tag">Idle</span><span class="tag">Multiplayer</span><span class="tag">3D</span><span class="tag">Casual</span><span class="tag">Arcade</span><span class="tag">Upgrades</span><span class="tag">Collecting</span><span class="tag">Roblox-style</span><span class="tag">Kids</span><span class="tag">Social</span><span class="tag">Speed</span><span class="tag">Adventure</span><span class="tag">Free</span></div></div>
+
+    <h2>In-App Purchases <small>(none)</small></h2>
+    <div class="card">
+    <div class="field"><div class="label">IAPs</div><div class="val">Leave empty. Everything (karts, Garage upgrades, rollers, boosts, levels) is bought with Wins inside the game.</div><span></span></div>
+    <div class="field"><div class="label">Default Webhook URL</div><div class="val"><span style="color:var(--off)">Leave empty (no purchases, no webhook)</span></div><span></span></div>
+    </div>
+
+    <h2>Release</h2>
+    <div class="card">
+    <div class="field"><div class="label">Release date &amp; time</div><div class="val">Click <b>Clear</b> so it publishes as soon as it is Active.</div><span></span></div>
+    </div>
+    <p class="sub" style="margin-top:10px">Then click <b>Create Game</b>.</p>
+
+    <h2>Hosting steps</h2>
+    <div class="card" style="padding:14px 16px"><ol class="steps">
+        <li>hosting.bloxity.io: create the app <code>speed-go-kart-escape</code> and copy its deploy token.</li>
+        <li>GitHub: repo <code>asivixlp44-cmyk/speed-go-kart-escape</code> with the secret <code>LEGION_DEPLOY_TOKEN</code>, then push <code>main</code> (the workflow builds and deploys).</li>
+        <li>After the first deploy, make the GHCR package <code>speed-go-kart-escape-server</code> public.</li>
+        <li>Check <code>https://speed-go-kart-escape.host.bloxity.io/health</code> and play at <code>https://speed-go-kart-escape.play.bloxity.io</code>.</li>
+        <li>Create the game in Manage Games with the values above (slug exactly <code>speed-go-kart-escape</code>).</li>
+    </ol></div>
+</main>
+<script>
+document.addEventListener('click', async (e) => {
+    const b = e.target.closest('button.copy');
+    if (!b || !b.dataset.v) return;
+    try { await navigator.clipboard.writeText(b.dataset.v); }
+    catch (err) { const t = document.createElement('textarea'); t.value = b.dataset.v; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+    const old = b.textContent; b.textContent = '✓'; b.classList.add('done');
+    setTimeout(() => { b.textContent = old; b.classList.remove('done'); }, 1200);
+});
+</script>
+</body>
+</html>

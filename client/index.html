@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>+1 Speed Go Kart Escape</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='8' y='14' width='84' height='72' rx='16' fill='%23ff6a2a' stroke='%23141a2e' stroke-width='8'/%3E%3Ctext x='50' y='66' font-size='46' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'%3E+1%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Montserrat:wght@800&display=swap">
+<style>
+:root {
+    color-scheme: dark;
+    --ink: #141a2e;
+    --panel: #22305a;
+    --yellow: #ffd028;
+    --green: #46ec50;
+    --blue: #28c8ff;
+    --red: #e82434;
+    --orange: #ff6a2a;
+    --white: #ffffff;
+    --font: "Fredoka", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+    font-size: clamp(9px, calc(100vmin / 54), 17px);
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; overflow: hidden; background: #6aa8e8; }
+body { font-family: var(--font); color: var(--white); user-select: none; -webkit-user-select: none; touch-action: none; }
+#app { position: fixed; inset: 0; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+#speedLines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+button { font-family: var(--font); cursor: pointer; color: var(--white); }
+button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+.o { text-shadow: -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink), 2px 2px 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 3px 0 var(--ink); }
+.o1 { text-shadow: -1px -1px 0 var(--ink), 1px -1px 0 var(--ink), -1px 1px 0 var(--ink), 1px 1px 0 var(--ink), 0 1.5px 0 var(--ink); }
+
+.btn {
+    border: 3px solid var(--ink); border-radius: 0.9rem; font-weight: 700;
+    box-shadow: inset 0 -0.3rem 0 rgba(0, 0, 0, 0.22), inset 0 0.2rem 0 rgba(255, 255, 255, 0.3), 0 0.2rem 0 var(--ink);
+    transition: transform 0.18s cubic-bezier(0.34, 1.8, 0.5, 1), filter 0.15s ease;
+}
+.btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.04); filter: brightness(1.08); }
+.btn:active:not(:disabled) { transform: translateY(2px) scale(0.95); transition-duration: 0.06s; }
+.btn:disabled { filter: grayscale(0.7) brightness(0.85); cursor: default; }
+/* Studded Roblox-style button faces */
+.studs { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='3.5' y='3.5' width='17' height='17' rx='3' fill='none' stroke='rgba(0,0,0,0.10)' stroke-width='2.2'/%3E%3Cpath d='M4.5 15 V6 Q4.5 4.5 6 4.5 H15' fill='none' stroke='rgba(255,255,255,0.22)' stroke-width='1.6'/%3E%3C/svg%3E"), var(--bg) !important; background-size: 1.3rem 1.3rem, 100% 100% !important; }
+.g-yellow { --bg: linear-gradient(#fff07a, #ffc414); background: var(--bg); }
+.g-green { --bg: linear-gradient(#8aff7a, #22c73a); background: var(--bg); }
+.g-blue { --bg: linear-gradient(#7ae6ff, #1f8fff); background: var(--bg); }
+.g-red { --bg: linear-gradient(#ff7a8a, #e8182c); background: var(--bg); }
+.g-purple { --bg: linear-gradient(#e27bff, #8a1cff); background: var(--bg); }
+.g-pink { --bg: linear-gradient(#ff9ae0, #ff3fa0); background: var(--bg); }
+.g-orange { --bg: linear-gradient(#ffb04a, #ff5a14); background: var(--bg); }
+.g-grey { --bg: linear-gradient(#b8bcd6, #6f7498); background: var(--bg); }
+.g-rainbow { background: linear-gradient(100deg, #ff3c5a 0%, #ffb51c 22%, #ffe83a 38%, #46ec50 55%, #28c8ff 72%, #8a5aff 88%, #ff4ad8 100%); background-size: 200% 100%; animation: rainbow 4s linear infinite; }
+@keyframes rainbow { to { background-position: 200% 0; } }
+
+/* HUD ------------------------------------------------------------------ */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+#hud > * { pointer-events: auto; }
+#hud .passive { pointer-events: none; }
+
+/* Top centre: Level bar, Speed, the stage timer, the quest pill */
+#topMid { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 0.6rem); transform: translateX(-50%); display: grid; justify-items: center; gap: 0.15rem; width: min(34rem, 56vw); pointer-events: none; }
+#levelBar { position: relative; display: flex; width: 100%; height: 2.5rem; background: #ffffff; border: 3px solid var(--ink); border-radius: 0.5rem; overflow: hidden; box-shadow: 0 0.2rem 0 var(--ink); }
+#levelBar::before { content: ""; position: absolute; inset: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='3.5' y='3.5' width='17' height='17' rx='3' fill='none' stroke='rgba(0,0,0,0.08)' stroke-width='2.2'/%3E%3C/svg%3E"); background-size: 1.2rem 1.2rem; }
+#levelBar .fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: linear-gradient(#5ae0ff, #1aa8e8); transition: width 0.15s linear; }
+#levelBar .fill::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.18) 0 0.5rem, transparent 0.5rem 1rem); background-size: 2.3rem 100%; animation: stripes 1.2s linear infinite; }
+@keyframes stripes { to { background-position: 2.3rem 0; } }
+#levelBar span { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.5rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; z-index: 1; }
+#levelTxt { left: 0.7rem; }
+#xpTxt { right: 0.7rem; }
+#speedTotal { font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+#lapBox { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 0.8rem; background: rgba(14, 20, 40, 0.6); border-radius: 0.6rem; padding: 0.1rem 0.7rem; }
+#lapBox .best { color: #ffd028; }
+#split { font-weight: 700; opacity: 0; transition: opacity 0.2s; }
+#split.show { opacity: 1; }
+#split.ahead { color: #7dff6b; } #split.behind { color: #ff6a6a; }
+/* Stage progress: start, checkpoints, the big jump, the Wins pads */
+#progress { position: relative; width: min(30rem, 52vw); height: 1.7rem; margin-top: 0.15rem; }
+#progress .track { position: absolute; left: 0; right: 0; top: 0.55rem; height: 0.55rem; background: rgba(14, 20, 40, 0.65); border: 2px solid rgba(255, 255, 255, 0.55); border-radius: 1rem; }
+#progress .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 1rem; background: linear-gradient(90deg, #ff8a2a, #ffd028); }
+#progress .mk { position: absolute; top: 50%; transform: translate(-50%, -50%); font-size: 0.95rem; line-height: 1; text-shadow: 0 1px 0 #000; }
+#progress .tick { position: absolute; top: -0.25rem; width: 0.25rem; height: 1rem; margin-left: -0.12rem; background: #ffffff; border-radius: 0.2rem; box-shadow: 0 0 0 1px #141a2e; }
+#progress .me { position: absolute; top: -0.15rem; transform: translateX(-50%) scaleX(-1); font-size: 1.35rem; line-height: 1; transition: left 0.1s linear; filter: drop-shadow(0 2px 0 #141a2e); }
+#progress .ghost { position: absolute; top: 0.45rem; width: 0.8rem; height: 0.8rem; margin-left: -0.4rem; border-radius: 50%; background: #8ad8ff; box-shadow: 0 0 0.5rem #8ad8ff; opacity: 0.85; }
+/* Section card: what's ahead and what to do */
+#secCard { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 9.6rem); transform: translateX(-50%); display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 1.2rem 0.45rem 0.7rem; background: rgba(10, 16, 34, 0.86); border: 3px solid var(--c, #ffd028); border-radius: 1rem; box-shadow: 0 0 1.2rem color-mix(in srgb, var(--c, #ffd028) 50%, transparent); pointer-events: none; max-width: 92vw; }
+#secCard .ic { font-size: 2.6rem; line-height: 1; }
+#secCard .tt { font-size: 1.6rem; font-weight: 700; color: var(--c, #ffd028); line-height: 1.05; }
+#secCard .tp { font-size: 1.1rem; font-weight: 600; color: #ffffff; }
+#secCard.show { animation: secIn 3.4s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes secIn { 0% { opacity: 0; transform: translate(-50%, -1.2rem) scale(0.85); } 8% { opacity: 1; transform: translate(-50%, 0) scale(1.04); } 14% { transform: translate(-50%, 0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -0.6rem); } }
+/* Start lights: 3, 2, 1, GO! */
+#countdown { position: absolute; left: 50%; top: 47%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 0.6rem; pointer-events: none; }
+#countdown .lights { display: flex; gap: 0.7rem; padding: 0.55rem 0.8rem; background: #14141e; border: 4px solid #000; border-radius: 1.2rem; box-shadow: 0 0.4rem 0 #000; }
+#countdown .lights i { display: block; width: 2.8rem; height: 2.8rem; border-radius: 50%; background: #3a1414; border: 3px solid #000; }
+#countdown .lights i.red { background: radial-gradient(circle at 35% 35%, #ff9a9a, #ff1a2a 60%); box-shadow: 0 0 1.2rem #ff2a3a; }
+#countdown .lights i.green { background: radial-gradient(circle at 35% 35%, #c8ffb0, #2adf3a 60%); box-shadow: 0 0 1.4rem #3aff4a; }
+#countdown .num { font-size: 7rem; font-weight: 700; line-height: 1; color: #ffffff; }
+#countdown .num.go { color: #46ec50; }
+#countdown.pop .num { animation: cdPop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes cdPop { 0% { transform: scale(2.2); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+#quest { display: flex; align-items: center; gap: 0.6rem; background: rgba(14, 20, 40, 0.72); border-left: 0.35rem solid #ff8a2a; border-radius: 0.45rem; padding: 0.3rem 1rem 0.3rem 0.7rem; font-size: 1.05rem; font-weight: 600; white-space: nowrap; max-width: 54vw; margin-top: 0.2rem; }
+#quest .qt { overflow: hidden; text-overflow: ellipsis; }
+#quest.done { border-left-color: var(--green); animation: questPop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes questPop { 0% { transform: scale(0.7); } 100% { transform: scale(1); } }
+
+/* Top right: icon row, account chip, OP Starter Pack */
+#topRight { position: absolute; right: max(0.8rem, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 0.6rem); display: grid; justify-items: end; gap: 0.35rem; }
+#iconRow { display: flex; gap: 0.32rem; align-items: flex-end; }
+.ib { position: relative; width: 3.3rem; height: 3.3rem; padding: 0.3rem; border: 0.18rem solid var(--ink); border-radius: 0.75rem; cursor: pointer; box-shadow: inset 0 -0.22rem 0 rgba(0, 0, 0, 0.2), inset 0 0.18rem 0 rgba(255, 255, 255, 0.35), 0 0.18rem 0 var(--ink); transition: transform 0.18s cubic-bezier(0.34, 1.8, 0.5, 1); }
+.ib svg { width: 100%; height: 100%; display: block; }
+.ib:hover { transform: translateY(-2px) scale(1.08); }
+.ib:active { transform: translateY(1px) scale(0.92); }
+.ib .tag { position: absolute; left: 50%; top: -1.05rem; transform: translateX(-50%); font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+.badge { position: absolute; top: -0.5rem; right: -0.5rem; background: var(--red); border: 2px solid var(--ink); border-radius: 1rem; font-size: 0.8rem; padding: 0.02rem 0.38rem; font-weight: 700; z-index: 2; }
+#starter { position: relative; display: grid; justify-items: center; cursor: pointer; padding: 0.1rem 0.4rem; border: 0; background: none; }
+#starter .t1 { font-size: 1.15rem; font-weight: 700; }
+#starter .gift { font-size: 2.6rem; line-height: 1; filter: drop-shadow(0 0.15rem 0 rgba(0, 0, 0, 0.4)); animation: giftBob 1.6s ease-in-out infinite; }
+@keyframes giftBob { 50% { transform: translateY(-0.25rem) rotate(-6deg); } }
+#starter .tm { font-size: 1rem; font-weight: 700; margin-top: -0.2rem; }
+#starter .only { font-size: 1.05rem; font-weight: 700; color: #7dff6b; }
+#acct { display: flex; align-items: center; gap: 0.4rem; background: rgba(14, 20, 40, 0.6); border: 2px solid rgba(255, 255, 255, 0.25); border-radius: 2rem; padding: 0.15rem 0.25rem; max-width: 50vw; }
+#acctPfp { width: 1.9rem; height: 1.9rem; border-radius: 50%; object-fit: cover; background: #22305a; }
+#acctName { font-size: 0.95rem; font-weight: 700; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 0.2rem; }
+#acctBtn { font-size: 0.8rem; padding: 0.2rem 0.6rem; border-radius: 1rem; }
+#fps { position: absolute; right: max(1rem, env(safe-area-inset-right, 0px)); bottom: 12rem; font-size: 0.85rem; font-weight: 700; color: #7dff6b; }
+
+/* Left: Wins, then the tiles (Go-Karts, Rebirth, Garage, Shop, Teleport, Rollers) */
+#leftCol { position: absolute; left: max(0.8rem, env(safe-area-inset-left, 0px)); top: 52%; transform: translateY(-50%); display: grid; gap: 0.5rem; --tile: 5.4rem; }
+#currency { display: grid; gap: 0.15rem; padding-left: 0.2rem; }
+.cur { display: flex; align-items: center; gap: 0.45rem; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.cur .cup { font-size: 2.5rem; filter: drop-shadow(0 0.12rem 0 rgba(0, 0, 0, 0.35)); }
+.cur.small { font-size: 1.35rem; }
+.cur.small .cup { font-size: 1.4rem; }
+.cur.bump { animation: bump 0.45s cubic-bezier(0.34, 1.8, 0.5, 1); }
+@keyframes bump { 35% { transform: scale(1.25); } }
+#tiles { display: grid; grid-template-columns: repeat(2, var(--tile)); gap: 0.45rem; }
+.rbx { position: relative; width: var(--tile); height: var(--tile); padding: 0; border: 0.22rem solid var(--ink); border-radius: 0.75rem; cursor: pointer; overflow: visible;
+    background-image: var(--studs), var(--bg); background-size: 1.4rem 1.4rem, 100% 100%;
+    box-shadow: inset 0 0.22rem 0 rgba(255, 255, 255, 0.35), inset 0 -0.3rem 0 rgba(0, 0, 0, 0.18), 0 0.22rem 0 var(--ink), 0 0.45rem 0.6rem rgba(0, 0, 0, 0.25);
+    transition: transform 0.18s cubic-bezier(0.34, 1.8, 0.5, 1), filter 0.15s ease; }
+.rbx { --studs: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Crect x='3.5' y='3.5' width='17' height='17' rx='3' fill='none' stroke='rgba(0,0,0,0.10)' stroke-width='2.2'/%3E%3Cpath d='M4.5 15 V6 Q4.5 4.5 6 4.5 H15' fill='none' stroke='rgba(255,255,255,0.22)' stroke-width='1.6'/%3E%3C/svg%3E"); }
+.rbx .ic { position: absolute; left: 50%; top: 3%; width: 74%; height: 74%; transform: translateX(-50%); filter: drop-shadow(0 0.12rem 0 rgba(0, 0, 0, 0.3)); transition: transform 0.25s cubic-bezier(0.34, 1.8, 0.5, 1); }
+.rbx .lb { position: absolute; left: 0; right: 0; bottom: 5%; text-align: center; font-size: 1.1rem; font-weight: 700; line-height: 1; color: #fff; white-space: nowrap; letter-spacing: -0.02em;
+    text-shadow: -0.12rem -0.12rem 0 var(--ink), 0.12rem -0.12rem 0 var(--ink), -0.12rem 0.12rem 0 var(--ink), 0.12rem 0.12rem 0 var(--ink), 0 0.14rem 0 var(--ink), 0 -0.14rem 0 var(--ink), 0.14rem 0 0 var(--ink), -0.14rem 0 0 var(--ink), 0 0.2rem 0 var(--ink); }
+.rbx::after { content: ''; position: absolute; inset: 0; border-radius: 0.55rem; background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.45) 50%, transparent 62%) no-repeat; background-size: 250% 100%; background-position: 160% 0; animation: tileShine 6s ease-in-out infinite; pointer-events: none; }
+@keyframes tileShine { 0%, 82% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
+.rbx:hover { transform: translateY(-2px) scale(1.06); filter: brightness(1.07); }
+.rbx:hover .ic { transform: translateX(-50%) rotate(-8deg) scale(1.08); }
+.rbx:active { transform: translateY(2px) scale(0.93); transition-duration: 0.06s; }
+.rbx .badge { top: -0.45rem; right: -0.45rem; }
+.rbx .pct { position: absolute; right: -0.35rem; top: -0.55rem; background: #ffffff; color: var(--ink); border: 2px solid var(--ink); border-radius: 1rem; font-size: 0.78rem; font-weight: 700; padding: 0 0.3rem; text-shadow: none; z-index: 2; }
+.rb-karts { --bg: linear-gradient(#ff7a7a 0%, #f0303a 55%, #c8141e 100%); }
+.rb-rebirth { --bg: linear-gradient(#fff07a 0%, #ffd028 55%, #f0a814 100%); }
+.rb-garage { --bg: linear-gradient(#ffc88a 0%, #ff8a2a 55%, #e85a10 100%); }
+.rb-shop { --bg: linear-gradient(#a8ff8a 0%, #46e04a 55%, #1ab43a 100%); }
+.rb-tele { --bg: linear-gradient(#c8a8ff 0%, #9a6aff 55%, #6a3ae0 100%); }
+.rb-tread { --bg: linear-gradient(#8ae0ff 0%, #2aa8ff 55%, #1a6ae8 100%); }
+.rbx.on { outline: 3px solid #fff; outline-offset: 2px; filter: brightness(1.2); }
+
+/* Right: Custom Speed, 2x SPEED, FREE */
+#rightCol { position: absolute; right: max(0.8rem, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%); display: grid; gap: 0.45rem; width: 11rem; justify-items: stretch; }
+#customSpeed { display: grid; gap: 0.1rem; text-align: center; }
+#customSpeed label { font-size: 1.15rem; font-weight: 700; }
+#customSpeed .row { position: relative; display: flex; align-items: center; gap: 0.2rem; background: linear-gradient(#bfe4ff, #8ac4ff); border: 3px solid var(--ink); border-radius: 0.8rem; padding: 0.1rem 0.4rem; box-shadow: 0 0.2rem 0 var(--ink); }
+#customSpeed .pen { font-size: 1.7rem; }
+#speedInput { width: 100%; min-width: 0; border: none; background: transparent; color: #fff; font: 700 1.9rem var(--font); text-align: center; -moz-appearance: textfield; outline: none; text-shadow: -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink), 2px 2px 0 var(--ink); }
+#speedInput::-webkit-outer-spin-button, #speedInput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#speedSlider { width: 100%; accent-color: #46ec50; margin: 0.1rem 0 0; height: 1rem; }
+#customSpeed small { font-size: 1rem; font-weight: 700; color: #fff; text-align: right; margin-top: -0.2rem; }
+#btn2x { font-size: 1.8rem; padding: 0.45rem 0.3rem; border-radius: 0.9rem; display: flex; justify-content: center; align-items: center; gap: 0.3rem; }
+#price2x { text-align: center; font-size: 1.15rem; font-weight: 700; margin-top: -0.25rem; color: #7dff6b; }
+#btnFree { position: relative; justify-self: center; width: 5.6rem; height: 5.6rem; }
+#btnUpgrade { font-size: 1.35rem; padding: 0.45rem 0.3rem; border-radius: 0.9rem; }
+#btnUpgrade.ready { animation: upgPulse 1.1s ease-in-out infinite; }
+@keyframes upgPulse { 50% { transform: scale(1.07); filter: brightness(1.25); box-shadow: 0 0 1.2rem #ffb04a, inset 0 -0.3rem 0 rgba(0, 0, 0, 0.22), 0 0.2rem 0 var(--ink); } }
+/* Police chase: distance to the cruiser behind you */
+#chaseChip { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 13.6rem); transform: translateX(-50%); font-size: 1.6rem; font-weight: 700; padding: 0.25rem 1rem; border-radius: 0.8rem; background: rgba(10, 16, 34, 0.85); border: 3px solid #3a8cff; pointer-events: none; animation: copFlash 0.5s steps(1) infinite; }
+#chaseChip.close { color: #ff6a6a; font-size: 1.9rem; }
+@keyframes copFlash { 50% { border-color: #ff2a3a; box-shadow: 0 0 1rem #ff2a3a; } }
+.rb-free { --bg: linear-gradient(#e27bff 0%, #b04aff 55%, #8a1cff 100%); }
+
+/* Bottom centre: +1 Level and the Speed packs */
+#bottom { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 0.7rem); transform: translateX(-50%); display: grid; justify-items: center; gap: 0.25rem; width: min(40rem, 62vw); pointer-events: none; }
+#buyRow { pointer-events: auto; display: flex; gap: 0.45rem; width: 100%; }
+#buyRow .btn { flex: 1; display: grid; justify-items: center; align-content: center; padding: 0.2rem 0.3rem; border-radius: 0.6rem; min-width: 0; }
+#buyRow .btn .a { font-size: 1.35rem; line-height: 1.1; white-space: nowrap; display: flex; align-items: center; gap: 0.2rem; }
+#buyRow .btn .p { font-size: 0.82rem; line-height: 1; opacity: 0.95; white-space: nowrap; }
+#btnLevel { flex: 0.9 !important; }
+#hint { font-size: 1.15rem; font-weight: 700; opacity: 0; transition: opacity 0.2s; }
+#hint.show { opacity: 1; }
+
+/* Bottom right: speedometer with the nitro tank and the drift charge */
+#speedo { position: absolute; right: max(1rem, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem); width: 10.5rem; height: 10.5rem; pointer-events: none; }
+#speedo svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+#speedo .num { position: absolute; left: 0; right: 0; top: 33%; text-align: center; font-size: 2.9rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+#speedo .unit { position: absolute; left: 0; right: 0; top: 63%; text-align: center; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.08em; color: #bfe4ff; }
+#speedo .max { position: absolute; left: 0; right: 0; top: 75%; text-align: center; font-size: 0.85rem; font-weight: 700; color: #ffd028; }
+#nitroBar { position: absolute; left: 10%; right: 10%; bottom: -0.6rem; height: 0.85rem; background: rgba(14, 20, 40, 0.75); border: 2px solid var(--ink); border-radius: 1rem; overflow: hidden; }
+#nitroBar i { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(90deg, #3ad8ff, #9a7aff); border-radius: 1rem; transition: width 0.08s linear; }
+#nitroBar.on i { background: linear-gradient(90deg, #ffffff, #5ae0ff); box-shadow: 0 0 0.8rem #5ae0ff; }
+#nitroBar b { position: absolute; inset: 0; font-size: 0.65rem; line-height: 0.75rem; text-align: center; letter-spacing: 0.1em; }
+#driftChip { position: absolute; left: 50%; top: -1.6rem; transform: translateX(-50%); font-size: 1.05rem; font-weight: 700; white-space: nowrap; opacity: 0; transition: opacity 0.15s; }
+#driftChip.show { opacity: 1; }
+
+/* Bottom left: Turbo Rush timer */
+#eventBox { position: absolute; left: max(0.8rem, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 0.6rem); font-size: 1.35rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#eventBox.on { color: #ff8a2a; animation: evPulse 1s ease-in-out infinite alternate; }
+@keyframes evPulse { to { transform: scale(1.06); } }
+
+/* Level up (reference): "Level Up! (4)" / "NEW KARTSPEED: 13 -> 14" */
+#levelPop { position: absolute; left: 50%; top: 26%; transform: translate(-50%, -50%); display: grid; justify-items: center; pointer-events: none; opacity: 0; }
+#levelPop .t { font-size: 3.6rem; font-weight: 700; line-height: 1; color: #46ec50; }
+#levelPop .d { font-size: 2.6rem; font-weight: 700; color: #ffffff; white-space: nowrap; }
+#levelPop.show { animation: lvl 2s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes lvl { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.5); } 10% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); } 20% { transform: translate(-50%, -50%) scale(1); } 82% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%); } }
+
+#stageTitle { position: absolute; left: 50%; top: 20%; transform: translateX(-50%); text-align: center; pointer-events: none; transition: opacity 0.6s ease; }
+#stageTitle .n { font-size: 5.8rem; font-weight: 700; line-height: 1; color: #fff; text-shadow: -4px -4px 0 var(--ink), 4px -4px 0 var(--ink), -4px 4px 0 var(--ink), 4px 4px 0 var(--ink), 0 5px 0 var(--ink), 0 -5px 0 var(--ink), 5px 0 0 var(--ink), -5px 0 0 var(--ink), 0 9px 0 #0a0e1a; }
+#stageTitle .s { font-size: 2.2rem; font-weight: 700; line-height: 1.15; }
+#stageTitle .r { font-size: 1.6rem; font-weight: 700; color: #5ad8ff; }
+#stageTitle .s:empty, #stageTitle .r:empty { display: none; }
+#stageTitle.show .n { animation: slideIn 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+#stageTitle.show .s { animation: slideIn 0.55s 0.12s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+#stageTitle.show .r { animation: slideIn 0.55s 0.2s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-3rem) skewX(-12deg); } }
+
+#toasts { position: absolute; left: 50%; top: 31%; transform: translateX(-50%); display: grid; justify-items: center; gap: 0.3rem; pointer-events: none; }
+.toast { font-size: 1.45rem; font-weight: 700; white-space: nowrap; animation: toast 2.6s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+@keyframes toast { 0% { opacity: 0; transform: translateY(1rem) scale(0.7); } 10% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-0.8rem); } }
+
+#goalBanner { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); display: grid; justify-items: center; pointer-events: none; }
+#goalBanner .goal { font-size: clamp(3rem, 11vw, 6.4rem); font-weight: 700; line-height: 1; color: var(--yellow); }
+#goalBanner .sub { font-size: 2.2rem; font-weight: 700; color: var(--green); }
+#goalBanner .rays { position: absolute; left: 50%; top: 50%; width: 36rem; height: 36rem; margin: -18rem 0 0 -18rem; border-radius: 50%; background: repeating-conic-gradient(rgba(255, 208, 40, 0.28) 0 10deg, transparent 10deg 20deg); mask-image: radial-gradient(circle, #000 20%, transparent 68%); -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 68%); z-index: -1; }
+#goalBanner.show .goal { animation: goalIn 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both, goalOut 0.4s 2.2s ease-in forwards; }
+#goalBanner.show .sub { animation: subIn 0.5s 0.25s cubic-bezier(0.2, 1.5, 0.4, 1) both, goalOut 0.4s 2.2s ease-in forwards; }
+#goalBanner.show .rays { animation: spin 6s linear infinite, raysIn 0.6s ease-out both, goalOut 0.4s 2.2s ease-in forwards; }
+@keyframes goalIn { from { opacity: 0; transform: scale(3) rotate(-12deg); } }
+@keyframes subIn { from { opacity: 0; transform: translateY(1.5rem); } }
+@keyframes raysIn { from { opacity: 0; transform: scale(0.3); } }
+@keyframes goalOut { to { opacity: 0; transform: scale(0.85); } }
+@keyframes spin { to { rotate: 360deg; } }
+
+#flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 55%, rgba(90, 224, 255, 0.4), rgba(90, 224, 255, 0) 60%); }
+#flash.show { animation: flash 0.7s ease-out; }
+#flash.dead { background: radial-gradient(circle at 50% 50%, rgba(255, 40, 60, 0) 30%, rgba(255, 40, 60, 0.55) 100%); }
+#flash.boost { background: radial-gradient(circle at 50% 50%, rgba(255, 160, 40, 0) 40%, rgba(255, 160, 40, 0.35) 100%); }
+@keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+#oof { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); display: grid; justify-items: center; pointer-events: none; }
+#oof .a { font-size: 4.8rem; font-weight: 700; color: #ff5a6a; line-height: 1; }
+#oof .b { font-size: 1.5rem; font-weight: 700; color: #ffffff; }
+#oof.show .a, #oof.show .b { animation: goalIn 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both, goalOut 0.3s 1.1s ease-in forwards; }
+
+#teleBack { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 6.4rem); transform: translateX(-50%); display: flex; align-items: center; gap: 0.5rem; font-size: 1.6rem; padding: 0.4rem 1.3rem; animation: popIn 0.34s cubic-bezier(0.2, 1.5, 0.4, 1); }
+#teleBack .ring { width: 1.8rem; height: 1.8rem; border-radius: 50%; background: conic-gradient(#fff var(--p, 100%), rgba(0, 0, 0, 0.2) 0); display: grid; place-items: center; font-size: 0.85rem; color: var(--ink); text-shadow: none; }
+
+#promptBtn { position: absolute; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 0.5rem; background: rgba(14, 20, 40, 0.85); border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 0.8rem; padding: 0.35rem 0.8rem 0.35rem 0.4rem; font-size: 1.1rem; font-weight: 600; white-space: nowrap; }
+#promptBtn kbd { font: 700 1rem var(--font); background: var(--white); color: var(--ink); border-radius: 0.4rem; padding: 0.1rem 0.5rem; }
+
+#tips { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem); transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem 1rem; max-width: min(46rem, 92vw); font-size: 1rem; font-weight: 600; color: #fff; background: rgba(14, 20, 40, 0.62); border-radius: 1rem; padding: 0.45rem 0.9rem; pointer-events: none; transition: opacity 0.8s ease; }
+#tips kbd { font: 700 0.85rem var(--font); background: var(--white); color: var(--ink); border-radius: 0.35rem; padding: 0.05rem 0.4rem; margin-right: 0.25rem; }
+
+/* Touch controls */
+#touch { position: absolute; inset: 0; pointer-events: none; }
+#stick { position: absolute; left: max(1.5rem, env(safe-area-inset-left, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem); width: 9.5rem; height: 9.5rem; border-radius: 50%; background: rgba(255, 255, 255, 0.14); border: 3px solid rgba(255, 255, 255, 0.4); pointer-events: auto; touch-action: none; }
+#knob { position: absolute; left: 50%; top: 50%; width: 4rem; height: 4rem; margin: -2rem 0 0 -2rem; border-radius: 50%; background: rgba(255, 255, 255, 0.6); border: 3px solid rgba(20, 26, 46, 0.6); }
+#hopBtn { position: absolute; right: max(1.4rem, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 1.6rem); width: 6.6rem; height: 6.6rem; border-radius: 50%; pointer-events: auto; touch-action: none; font-size: 1.2rem; line-height: 1.05; }
+#nitroBtn { position: absolute; right: max(8.8rem, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 1.2rem); width: 4.8rem; height: 4.8rem; border-radius: 50%; pointer-events: auto; touch-action: none; font-size: 1rem; }
+#brakeBtn { position: absolute; right: max(1.8rem, env(safe-area-inset-right, 0px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 9.2rem); width: 4.4rem; height: 4.4rem; border-radius: 50%; pointer-events: auto; touch-action: none; font-size: 0.95rem; }
+body.touch #speedo { right: auto; left: 50%; transform: translateX(-50%) scale(0.72); transform-origin: bottom center; bottom: calc(env(safe-area-inset-bottom, 0px) + 4.2rem); }
+body.touch #bottom { width: min(28rem, 46vw); bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4rem); }
+body.touch #eventBox { left: auto; right: 14rem; bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4rem); font-size: 1rem; }
+body.touch #rightCol { top: 46%; }
+
+/* Panels ----------------------------------------------------------------- */
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 14, 32, 0.45); padding: 1rem; }
+.overlay:not([hidden]) { animation: fadeIn 0.2s ease; }
+.overlay:not([hidden]) .panel, .overlay:not([hidden]) .card { animation: popIn 0.34s cubic-bezier(0.2, 1.5, 0.4, 1); }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.8) translateY(1rem); } }
+.panel { width: min(40rem, 100%); max-height: min(38rem, 88vh); display: flex; flex-direction: column; background: linear-gradient(#2a3a6a, #1a244a); border: 4px solid var(--ink); border-radius: 1.3rem; box-shadow: 0 0.4rem 0 var(--ink); overflow: hidden; }
+.panel header { display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.7rem 0.55rem 1.1rem; background: linear-gradient(#ffa84a, #ff5a14); border-bottom: 4px solid var(--ink); }
+.panel h2 { margin: 0; font-size: 1.9rem; font-weight: 700; }
+.panel .x { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; padding: 0; }
+.tabs { display: flex; gap: 0.4rem; padding: 0.6rem 0.9rem 0; flex-wrap: wrap; }
+.tabs .btn { font-size: 1rem; padding: 0.3rem 0.8rem; }
+.panel .body { padding: 0.8rem 0.9rem 0.9rem; overflow-y: auto; display: grid; gap: 0.55rem; }
+.row-card { display: grid; grid-template-columns: 3rem 1fr auto; align-items: center; gap: 0.7rem; background: rgba(255, 255, 255, 0.1); border: 3px solid var(--ink); border-radius: 0.9rem; padding: 0.45rem 0.6rem; }
+.row-card.on { background: rgba(125, 255, 107, 0.2); }
+.row-card .ic { font-size: 2rem; text-align: center; }
+.row-card .nm { font-size: 1.15rem; font-weight: 700; line-height: 1.1; }
+.row-card .ds { font-size: 0.88rem; color: #d8e4ff; }
+.row-card button { font-size: 1rem; padding: 0.4rem 0.7rem; min-width: 6.6rem; }
+.kart-card { display: grid; grid-template-columns: 5.4rem 1fr auto; align-items: center; gap: 0.7rem; background: rgba(255, 255, 255, 0.1); border: 3px solid var(--ink); border-radius: 0.9rem; padding: 0.4rem 0.6rem; }
+.kart-card.on { background: rgba(125, 255, 107, 0.2); }
+.kart-card .sw { width: 5.4rem; height: 3.4rem; border-radius: 0.6rem; border: 3px solid var(--ink); display: grid; place-items: center; font-size: 1.9rem; position: relative; overflow: hidden; }
+.kart-card .sw::after { content: ''; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(255, 255, 255, 0.45), transparent 45%); }
+.kart-card .mult { font-size: 1.3rem; font-weight: 700; color: #5ad8ff; }
+.kart-card .nm { font-size: 1.1rem; font-weight: 700; line-height: 1.1; }
+.kart-card .ds { font-size: 0.85rem; color: #d8e4ff; }
+.kart-card button { font-size: 1rem; padding: 0.4rem 0.7rem; min-width: 7rem; }
+.upg { display: grid; grid-template-columns: 3.4rem 1fr auto; align-items: center; gap: 0.7rem; background: rgba(255, 255, 255, 0.1); border: 3px solid var(--ink); border-radius: 0.9rem; padding: 0.6rem 0.7rem; }
+.upg.focus { box-shadow: 0 0 0 3px #ffd028; }
+.upg .ic { font-size: 2.4rem; text-align: center; }
+.upg .nm { font-size: 1.3rem; font-weight: 700; }
+.upg .ds { font-size: 0.9rem; color: #d8e4ff; }
+.upg .pips { display: flex; gap: 0.18rem; margin-top: 0.3rem; }
+.upg .pips i { width: 0.95rem; height: 0.55rem; border-radius: 0.2rem; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.2); }
+.upg .pips i.on { background: linear-gradient(#ffe36b, #ff8a2a); border-color: var(--ink); }
+.upg button { font-size: 1.05rem; padding: 0.5rem 0.8rem; min-width: 7.4rem; }
+.sec { font-size: 1.05rem; font-weight: 700; color: var(--yellow); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 0.2rem; }
+.note { margin: 0; font-size: 0.9rem; color: #d8e4ff; }
+.rebirth-box { display: grid; gap: 0.7rem; text-align: center; }
+.rebirth-box .big { font-size: 2.5rem; font-weight: 700; }
+.rebirth-box .mult { display: flex; justify-content: center; align-items: center; gap: 1rem; font-size: 1.8rem; font-weight: 700; }
+.rebirth-box p { margin: 0; font-size: 1rem; color: #d8e4ff; }
+.rebirth-box button { font-size: 1.5rem; padding: 0.6rem; }
+.rebirth-box .prog { position: relative; height: 1.6rem; background: rgba(0, 0, 0, 0.3); border: 3px solid var(--ink); border-radius: 1rem; overflow: hidden; }
+.rebirth-box .prog i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ffd028, #ff6a2a); }
+.rebirth-box .prog span { position: relative; font-size: 0.95rem; font-weight: 700; line-height: 1.4rem; }
+.stats-grid { display: grid; grid-template-columns: 1fr auto; gap: 0.35rem 1rem; font-size: 1.1rem; font-weight: 700; }
+.stats-grid span:nth-child(even) { text-align: right; color: #7dff6b; }
+.code-row { display: flex; gap: 0.5rem; }
+.code-row input { flex: 1; min-width: 0; font: 700 1.2rem var(--font); border: 3px solid var(--ink); border-radius: 0.6rem; padding: 0.4rem 0.6rem; background: #fff; color: var(--ink); text-transform: uppercase; }
+.code-row .btn { font-size: 1.15rem; padding: 0.4rem 1rem; }
+.invite-row { display: flex; gap: 0.5rem; }
+.invite-row input { flex: 1; min-width: 0; font: 600 0.9rem var(--font); border: 2px solid var(--ink); border-radius: 0.5rem; padding: 0.35rem 0.5rem; background: #fff; color: var(--ink); }
+.invite-row .btn { font-size: 0.95rem; padding: 0.35rem 0.8rem; }
+.settings { display: grid; gap: 1rem; }
+.set-row { display: grid; grid-template-columns: 9rem 1fr; align-items: center; gap: 0.8rem; font-size: 1.15rem; font-weight: 700; }
+.set-row input[type=range] { width: 100%; accent-color: var(--green); height: 1.4rem; }
+.seg { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.seg .btn { font-size: 1rem; padding: 0.35rem 0.8rem; }
+.tele-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.6rem, 1fr)); gap: 0.5rem; }
+.tele-grid .btn { display: grid; justify-items: center; gap: 0.1rem; padding: 0.5rem 0.3rem; font-size: 1.1rem; }
+.tele-grid .btn small { font-size: 0.78rem; font-weight: 600; }
+
+/* Cards */
+.card { position: relative; width: min(25rem, 100%); display: grid; gap: 0.6rem; justify-items: center; text-align: center; padding: 1.1rem 1.2rem 1.2rem; background: linear-gradient(#ffffff, #e8f0ff); color: var(--ink); border: 4px solid var(--ink); border-radius: 1.2rem; box-shadow: 0 0.4rem 0 var(--ink); }
+.card h2 { margin: 0; font-size: 2.1rem; color: #fff; }
+.card .x { position: absolute; right: -0.9rem; top: -0.9rem; width: 3rem; height: 3rem; padding: 0; font-size: 1.4rem; border-radius: 0.8rem; }
+.card .big-ic { font-size: 3.4rem; }
+.card .keep { font-size: 1.05rem; font-weight: 600; color: #2a3a5a; }
+.card .gain { font-size: 2.2rem; font-weight: 700; color: var(--green); }
+.card .acts { display: flex; gap: 0.6rem; width: 100%; }
+.card .acts .btn { flex: 1; font-size: 1.3rem; padding: 0.45rem; }
+.card .cost { font-size: 1.5rem; font-weight: 700; }
+
+.daily-pop { position: relative; width: min(40rem, 100%); display: grid; justify-items: center; gap: 0.6rem; padding: 0.3rem 0.8rem 1rem; background: rgba(14, 20, 40, 0.9); border: 4px solid var(--ink); border-radius: 1.2rem; box-shadow: 0 0.4rem 0 var(--ink); }
+.daily-pop header { width: calc(100% + 1.6rem); margin: -0.3rem -0.8rem 0; display: flex; align-items: center; justify-content: center; gap: 0.6rem; background: linear-gradient(#ffe36b, #ffb51c); border-bottom: 4px solid var(--ink); border-radius: 0.9rem 0.9rem 0 0; padding: 0.4rem; }
+.daily-pop h2 { margin: 0; font-size: 2.4rem; }
+.daily-pop .x { position: absolute; right: -0.8rem; top: -0.8rem; width: 2.8rem; height: 2.8rem; padding: 0; font-size: 1.3rem; border-radius: 0.8rem; }
+.daily-pop .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; width: 100%; }
+.daily-pop .cards .dcard:nth-child(n+5) { transform: translateX(50%); }
+.dcard { position: relative; display: grid; place-items: center; align-content: center; gap: 0.1rem; aspect-ratio: 1; background: linear-gradient(#2a3a5a, #18223a); border: 3px solid #4a5a8a; border-radius: 0.6rem; padding: 0.2rem; }
+.dcard .dn { font-size: 1.1rem; font-weight: 700; }
+.dcard .di { font-size: 2.2rem; line-height: 1; }
+.dcard .dr { font-size: 0.9rem; font-weight: 700; line-height: 1.05; text-align: center; }
+.dcard .st { font-size: 0.85rem; font-weight: 700; color: #ffd028; }
+.dcard.today { border-color: #46ec50; box-shadow: 0 0 0 3px rgba(70, 236, 80, 0.5); }
+.dcard.today .st { color: #7dff6b; }
+.dcard.done { filter: grayscale(0.6) brightness(0.8); }
+.daily-pop .claim { font-size: 1.6rem; padding: 0.35rem 2rem; }
+.daily-pop .left { font-size: 1.15rem; font-weight: 700; }
+
+/* Start screen */
+#start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; background: radial-gradient(ellipse at center, rgba(255, 138, 42, 0.45), rgba(10, 18, 44, 0.94)); }
+.loader { display: grid; justify-items: center; gap: 0.9rem; text-align: center; }
+.loader .logo { font-size: 3rem; font-weight: 700; line-height: 1; }
+.loader .logo b { color: var(--yellow); }
+.loader-wheel { width: 5.4rem; height: 5.4rem; border-radius: 50%; background: radial-gradient(circle, #e8ecf4 0 22%, #14141e 23% 30%, #ff6a2a 31% 42%, #22222a 43% 100%); border: 4px solid var(--ink); box-shadow: 0 0.35rem 0 var(--ink); position: relative; animation: wheelSpin 0.8s linear infinite; }
+.loader-wheel::before, .loader-wheel::after { content: ''; position: absolute; left: 50%; top: 8%; bottom: 8%; width: 12%; margin-left: -6%; background: repeating-linear-gradient(#14141e 0 12%, transparent 12% 24%); opacity: 0.5; }
+.loader-wheel::after { transform: rotate(90deg); }
+@keyframes wheelSpin { to { transform: rotate(360deg); } }
+#loading { font-size: 1.3rem; font-weight: 700; }
+#playBtn { font-size: 1.4rem; padding: 0.45rem 1.6rem; }
+.err { color: #ffd0d0; font-size: 1.05rem; font-weight: 600; max-width: 28rem; }
+
+/* Phones and short screens */
+@media (max-width: 760px), (max-height: 520px) {
+    #leftCol { --tile: 4.2rem; top: 53%; }
+    .rbx .lb { font-size: 0.8rem; }
+    .cur { font-size: 1.8rem; } .cur .cup { font-size: 1.9rem; }
+    #rightCol { width: 8.4rem; }
+    #btn2x { font-size: 1.3rem; }
+    #customSpeed label { font-size: 0.9rem; }
+    #speedInput { font-size: 1.4rem; }
+    #btnFree { width: 4.4rem; height: 4.4rem; }
+    #btnUpgrade { font-size: 0.95rem; }
+    #chaseChip { top: calc(env(safe-area-inset-top, 0px) + 10.4rem); font-size: 1.1rem; }
+    .ib { width: 2.6rem; height: 2.6rem; }
+    #starter .gift { font-size: 2rem; }
+    #starter .t1 { font-size: 0.9rem; }
+    #buyRow .btn .a { font-size: 1.05rem; }
+    #buyRow .btn .p { font-size: 0.68rem; }
+    #levelBar { height: 2rem; } #levelBar span { font-size: 1.15rem; }
+    #speedTotal { font-size: 1.4rem; }
+    #stageTitle .n { font-size: 3.4rem; } #stageTitle .s { font-size: 1.6rem; } #stageTitle .r { font-size: 1.15rem; }
+    #levelPop .t { font-size: 2.4rem; } #levelPop .d { font-size: 1.6rem; }
+    #quest { font-size: 0.85rem; }
+    #acctName { display: none; }
+    #secCard { top: calc(env(safe-area-inset-top, 0px) + 7.4rem); } #secCard .ic { font-size: 1.8rem; } #secCard .tt { font-size: 1.15rem; } #secCard .tp { font-size: 0.85rem; }
+    #countdown .num { font-size: 4.4rem; } #countdown .lights i { width: 1.9rem; height: 1.9rem; }
+    #progress { height: 1.3rem; } #progress .me { font-size: 1.05rem; }
+}
+@media (max-height: 460px) {
+    #leftCol { --tile: 3.5rem; gap: 0.3rem; }
+    #starter .tm, #starter .only { display: none; }
+    #quest { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .toast, #levelPop.show, .rbx::after, .g-rainbow, #starter .gift, .loader-wheel { animation-duration: 0.01s !important; animation-iteration-count: 1 !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+    <canvas id="view" tabindex="0" aria-label="Game view"></canvas>
+    <canvas id="speedLines" aria-hidden="true"></canvas>
+
+    <div id="hud" hidden>
+        <div id="flash" class="passive" aria-hidden="true"></div>
+
+        <!-- Top centre (reference): Level bar, "Speed: 125", then the stage timer and the quest -->
+        <div id="topMid">
+            <div id="levelBar"><div class="fill" id="xpFill"></div><span class="o" id="levelTxt">Level 1</span><span class="o" id="xpTxt">0/5</span></div>
+            <div id="speedTotal" class="o">Speed: <b id="speedVal">0</b></div>
+            <div id="lapBox" class="o1" hidden><span id="lapNow">⏱ 0.00s</span><span class="best" id="lapBest"></span><span id="split"></span></div>
+            <div id="progress" hidden><div class="track" id="progTrack"></div><div class="me" id="progMe">🏎️</div><div class="ghost" id="progGhost" hidden></div></div>
+            <div id="quest"><span class="qt o1" id="questTxt">Drive into Stage 1</span></div>
+        </div>
+
+        <!-- Top right: CODES, Quests, Daily, Friends, Settings; account chip; Starter PACK -->
+        <div id="topRight">
+            <div id="iconRow">
+                <button class="ib g-green" id="btnCodes" aria-label="Codes" title="Codes"><span class="tag o1">CODES</span>
+                    <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M10 30 Q10 22 18 22 L82 22 Q90 22 90 30 L90 40 Q80 40 80 50 Q80 60 90 60 L90 70 Q90 78 82 78 L18 78 Q10 78 10 70 L10 60 Q20 60 20 50 Q20 40 10 40 Z" fill="#fff" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><path d="M38 34 L38 66" stroke="#ff6a2a" stroke-width="6" stroke-dasharray="6 6"/><path d="M50 42 L72 42 M50 56 L66 56" stroke="#28a83c" stroke-width="7" stroke-linecap="round"/></svg>
+                </button>
+                <button class="ib g-orange" id="btnQuests" aria-label="Quests" title="Quests">
+                    <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M24 14 L76 14 Q84 14 84 24 L84 78 Q84 88 74 88 L26 88 Q16 88 16 78 L16 24" fill="#fff4d6" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><circle cx="20" cy="22" r="8" fill="#ffd28a" stroke="#141a2e" stroke-width="5"/><path d="M32 38 L68 38 M32 52 L68 52 M32 66 L56 66" stroke="#9a5a32" stroke-width="6" stroke-linecap="round"/></svg>
+                </button>
+                <button class="ib g-blue" id="btnDaily" aria-label="Daily rewards" title="Daily Rewards">
+                    <svg viewBox="0 0 100 100" aria-hidden="true"><rect x="12" y="20" width="76" height="68" rx="10" fill="#fff" stroke="#141a2e" stroke-width="6"/><path d="M12 30 Q12 20 22 20 L78 20 Q88 20 88 30 L88 42 L12 42 Z" fill="#e8304a" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><path d="M32 12 L32 28 M68 12 L68 28" stroke="#141a2e" stroke-width="8" stroke-linecap="round"/><text x="50" y="78" font-size="36" font-family="Arial" font-weight="bold" text-anchor="middle" fill="#141a2e">31</text></svg>
+                    <span class="badge" id="dailyBadge" hidden>!</span>
+                </button>
+                <button class="ib g-purple" id="btnFriends" aria-label="Friends" title="Friends">
+                    <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="64" cy="34" r="14" fill="#ffb8d8" stroke="#141a2e" stroke-width="6"/><path d="M42 84 Q42 56 64 56 Q86 56 86 84 Z" fill="#ff6ab0" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><circle cx="36" cy="40" r="15" fill="#fff" stroke="#141a2e" stroke-width="6"/><path d="M12 90 Q12 62 36 62 Q60 62 60 90 Z" fill="#3a8cff" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="ib g-grey" id="btnSettings" aria-label="Settings" title="Settings">
+                    <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 14 L57 14 L60 26 L70 31 L81 25 L86 31 L80 42 L84 52 L95 56 L95 63 L83 66 L79 76 L85 87 L79 92 L68 86 L58 90 L55 101 L45 101 L42 90 L32 86 L21 92 L15 87 L21 76 L17 66 L5 63 L5 56 L16 52 L20 42 L14 31 L19 25 L30 31 L40 26 L43 14 Z" transform="translate(0 -7) scale(1 0.94)" fill="#e8e8f4" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="50" r="13" fill="#8a84b8" stroke="#141a2e" stroke-width="6"/></svg>
+                </button>
+            </div>
+            <div id="acct" hidden>
+                <img id="acctPfp" alt="" hidden>
+                <span class="o1" id="acctName">Guest</span>
+                <button class="btn g-blue o1" id="acctBtn">Log in</button>
+            </div>
+            <button id="starter" aria-label="OP Starter Pack">
+                <span class="t1 o">Starter PACK!</span>
+                <span class="gift" aria-hidden="true">🏎️</span>
+                <span class="tm o1" id="starterTime">15:00</span>
+                <span class="only o1" id="starterPrice">ONLY 🏆10</span>
+            </button>
+        </div>
+
+        <!-- Left (reference): Wins, then Go-Karts / Rebirth / Garage / Shop / Teleport / Rollers -->
+        <div id="leftCol">
+            <div id="currency" class="passive">
+                <div class="cur" id="winsCur"><span class="cup" aria-hidden="true">🏆</span><b class="o" id="winsVal">0</b></div>
+                <div class="cur small" id="rebCur" hidden><span class="cup" aria-hidden="true">🔄</span><b class="o" id="rebVal">0</b></div>
+            </div>
+            <div id="tiles">
+                <button class="rbx rb-karts" id="btnKarts" aria-label="Go-Karts">
+                    <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><rect x="14" y="44" width="72" height="22" rx="8" fill="#3a8cff" stroke="#141a2e" stroke-width="5"/><path d="M30 44 L38 26 L62 26 L70 44 Z" fill="#7ad0ff" stroke="#141a2e" stroke-width="5" stroke-linejoin="round"/><circle cx="50" cy="20" r="9" fill="#ffd028" stroke="#141a2e" stroke-width="5"/><circle cx="26" cy="70" r="11" fill="#22222a" stroke="#141a2e" stroke-width="5"/><circle cx="74" cy="70" r="11" fill="#22222a" stroke="#141a2e" stroke-width="5"/><circle cx="26" cy="70" r="4" fill="#ddd"/><circle cx="74" cy="70" r="4" fill="#ddd"/></svg>
+                    <span class="lb">Go-Karts</span>
+                </button>
+                <button class="rbx rb-rebirth" id="btnRebirth" aria-label="Rebirth">
+                    <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="#fff" stroke="#141a2e" stroke-width="6"/><path d="M50 22 A28 28 0 1 1 22 50" fill="none" stroke="#ff3fa0" stroke-width="10" stroke-linecap="round"/><path d="M14 52 L22 40 L32 52 Z" fill="#ff3fa0" stroke="#141a2e" stroke-width="4" stroke-linejoin="round"/><circle cx="50" cy="50" r="9" fill="#28c8ff" stroke="#141a2e" stroke-width="4"/></svg>
+                    <span class="lb">Rebirth</span>
+                    <span class="pct" id="rebirthPct">0%</span>
+                </button>
+                <button class="rbx rb-garage" id="btnGarage" aria-label="Garage upgrades">
+                    <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 12 L58 12 L61 24 L71 29 L82 23 L88 29 L82 40 L86 50 L98 54 L98 62 L86 65 L82 75 L88 86 L82 92 L71 86 L61 91 L58 102 L48 102 L45 91 L35 86 L24 92 L18 86 L24 75 L20 65 L8 62 L8 54 L20 50 L24 40 L18 29 L24 23 L35 29 L45 24 L48 12 Z" transform="translate(4 -6) scale(0.92)" fill="#e8ecf4" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><circle cx="52" cy="50" r="13" fill="#ff8a2a" stroke="#141a2e" stroke-width="6"/></svg>
+                    <span class="lb">Garage</span>
+                    <span class="badge" id="garageBadge" hidden>!</span>
+                </button>
+                <button class="rbx rb-shop" id="btnShop" aria-label="Shop">
+                    <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><path d="M18 34 L82 34 L76 84 Q75 90 69 90 L31 90 Q25 90 24 84 Z" fill="#ffd028" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><path d="M36 40 L36 26 Q36 12 50 12 Q64 12 64 26 L64 40" fill="none" stroke="#141a2e" stroke-width="6" stroke-linecap="round"/><path d="M42 56 L58 56 L46 76 L60 70" fill="none" stroke="#ff6a2a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="lb">Shop</span>
+                </button>
+                <button class="rbx rb-tele" id="btnTeleport" aria-label="Teleport">
+                    <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="#7a3ae0" stroke="#141a2e" stroke-width="6"/><path d="M50 50 m0 -6 a6 6 0 1 1 -6 6 a12 12 0 1 1 12 12 a18 18 0 1 1 -18 -18 a24 24 0 1 1 24 24" fill="none" stroke="#e8c8ff" stroke-width="6" stroke-linecap="round"/></svg>
+                    <span class="lb">Teleport</span>
+                </button>
+                <button class="rbx rb-tread" id="btnTreadmill" aria-label="Speed Rollers: Auto Train">
+                    <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><rect x="10" y="56" width="80" height="18" rx="8" fill="#3a3c46" stroke="#141a2e" stroke-width="5"/><circle cx="24" cy="65" r="6" fill="#ffd028"/><circle cx="42" cy="65" r="6" fill="#ffd028"/><circle cx="60" cy="65" r="6" fill="#ffd028"/><circle cx="78" cy="65" r="6" fill="#ffd028"/><path d="M50 14 L50 44 M38 32 L50 44 L62 32" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="lb">Rollers</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right (reference): Custom Speed, 2x SPEED, FREE -->
+        <div id="rightCol">
+            <div id="customSpeed">
+                <label class="o1" for="speedInput">Custom Speed</label>
+                <div class="row"><span class="pen" aria-hidden="true">✏️</span><input id="speedInput" type="number" inputmode="numeric" min="10" value="20" aria-label="Custom kart speed"></div>
+                <input id="speedSlider" type="range" min="10" max="20" value="20" aria-label="Kart speed slider">
+                <small class="o1" id="maxSpeedTxt">Max: 20</small>
+            </div>
+            <button class="btn g-blue studs" id="btn2x"><span class="o">2x SPEED</span><span aria-hidden="true">⚡</span></button>
+            <div class="o1" id="price2x">ONLY 🏆50</div>
+            <button class="rbx rb-free" id="btnFree" aria-label="Free rewards">
+                <svg class="ic" viewBox="0 0 100 100" aria-hidden="true"><path d="M14 44 L86 44 L86 86 Q86 90 82 90 L18 90 Q14 90 14 86 Z" fill="#ff4a6a" stroke="#141a2e" stroke-width="6" stroke-linejoin="round"/><rect x="8" y="30" width="84" height="18" rx="4" fill="#ff7a8a" stroke="#141a2e" stroke-width="6"/><rect x="43" y="30" width="14" height="60" fill="#ffd028" stroke="#141a2e" stroke-width="5"/><path d="M50 30 Q30 6 22 22 Q18 32 50 30 Q82 32 78 22 Q70 6 50 30" fill="#ffd028" stroke="#141a2e" stroke-width="5" stroke-linejoin="round"/></svg>
+                <span class="lb">FREE</span>
+                <span class="badge" id="freeBadge" hidden>!</span>
+            </button>
+            <button class="btn g-orange studs o" id="btnUpgrade">🔧 UPGRADE</button>
+        </div>
+
+        <!-- Bottom (reference): +1 Level and three Speed packs -->
+        <div id="bottom">
+            <div id="hint" class="o passive"></div>
+            <div id="buyRow">
+                <button class="btn g-green studs o1" id="btnLevel"><span class="a o">+1 Level</span><span class="p" id="lvlPrice">🏆 1</span></button>
+                <button class="btn g-blue studs o1" data-pack="0"><span class="a o">⚡<b>+1</b> Speed</span><span class="p">🏆 1</span></button>
+                <button class="btn g-yellow studs o1" data-pack="1"><span class="a o">⚡<b>+1</b> Speed</span><span class="p">🏆 1</span></button>
+                <button class="btn g-purple studs o1" data-pack="2"><span class="a o">⚡<b>+1</b> Speed</span><span class="p">🏆 1</span></button>
+            </div>
+        </div>
+
+        <!-- Speedometer: current speed, top speed, nitro tank, drift charge -->
+        <div id="speedo" class="passive">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+                <defs>
+                    <linearGradient id="spdGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3ad8ff"/><stop offset="0.6" stop-color="#ffd028"/><stop offset="1" stop-color="#ff3a3a"/></linearGradient>
+                </defs>
+                <circle cx="50" cy="50" r="46" fill="rgba(14,20,40,0.72)" stroke="#141a2e" stroke-width="3"/>
+                <path id="spdTrack" d="M 21.7 78.3 A 40 40 0 1 1 78.3 78.3" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="7" stroke-linecap="round"/>
+                <path id="spdArc" d="M 21.7 78.3 A 40 40 0 1 1 78.3 78.3" fill="none" stroke="url(#spdGrad)" stroke-width="7" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+                <g id="spdTicks" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"></g>
+            </svg>
+            <div class="num o" id="spdNum">0</div>
+            <div class="unit">SPEED</div>
+            <div class="max o1" id="spdMax">MAX 20</div>
+            <div id="nitroBar"><i id="nitroFill"></i><b class="o1">NITRO</b></div>
+            <div id="driftChip" class="o">🔵 DRIFT</div>
+        </div>
+
+        <!-- Bottom left: "Turbo Rush In 00:20:33" -->
+        <div id="eventBox" class="o passive">Turbo Rush In 00:00:00</div>
+
+        <div id="stageTitle" style="opacity:0"><div class="n" id="stageName">STAGE 1</div><div class="s o" id="stageSub"></div><div class="r o1" id="stageRec"></div></div>
+        <div id="chaseChip" class="o1" hidden>🚓 40m</div>
+        <div id="secCard" hidden><span class="ic" id="secIc">⚡</span><div><div class="tt o1" id="secTt">LASERS</div><div class="tp o1" id="secTp">Wait for the gates</div></div></div>
+        <div id="countdown" hidden><div class="lights"><i></i><i></i><i></i></div><div class="num o" id="cdNum">3</div></div>
+        <div id="levelPop" aria-live="polite"><div class="t o" id="lvlT">Level Up! (2)</div><div class="d o" id="lvlD">NEW KARTSPEED: 20 -> 22</div></div>
+        <div id="goalBanner" class="passive" hidden><div class="rays"></div><div class="goal o">+1 WIN!</div><div class="sub o" id="goalSub">Back to the lobby…</div></div>
+        <div id="oof" class="passive" hidden><div class="a o" id="oofA">CRASH!</div><div class="b o1" id="oofB"></div></div>
+        <button class="btn g-pink studs o1" id="teleBack" hidden><span class="ring" id="teleRing"><b id="teleNum">12</b></span><span class="o">Teleport Back!</span></button>
+        <div id="toasts"></div>
+        <div id="tips" class="o1" hidden></div>
+        <button id="promptBtn" hidden><kbd>E</kbd><span id="promptTxt"></span></button>
+        <div id="fps" class="o1 passive" hidden>60 FPS</div>
+        <div id="touch" hidden>
+            <div id="stick"><div id="knob"></div></div>
+            <button class="btn g-orange o" id="hopBtn">HOP<br>DRIFT</button>
+            <button class="btn g-blue o" id="nitroBtn">NITRO</button>
+            <button class="btn g-grey o" id="brakeBtn">BRAKE</button>
+        </div>
+    </div>
+
+    <!-- Panels: Shop, Go-Karts, Garage, Rebirth, FREE, Teleport, Codes, Quests, Stats, Settings, Friends -->
+    <div id="modal" class="overlay" hidden>
+        <div class="panel" role="dialog" aria-labelledby="modalTitle">
+            <header><h2 class="o" id="modalTitle">Shop</h2><button class="btn g-red x o1" id="modalClose" aria-label="Close">✕</button></header>
+            <div class="tabs" id="modalTabs"></div>
+            <div class="body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <div id="confirm" class="overlay" hidden>
+        <div class="card" role="dialog" aria-labelledby="confirmTitle">
+            <button class="btn g-red x o" id="confirmClose" aria-label="Close">✕</button>
+            <div class="big-ic" id="confirmIc">🛒</div>
+            <h2 class="o" id="confirmTitle">Buy?</h2>
+            <div class="keep" id="confirmText">Good Go-Kart</div>
+            <div class="cost" id="confirmCost">🏆 45 Wins</div>
+            <div class="acts"><button class="btn g-green o" id="confirmYes">Buy</button><button class="btn g-grey o" id="confirmNo">Cancel</button></div>
+        </div>
+    </div>
+
+    <div id="daily" class="overlay" hidden>
+        <div class="daily-pop" role="dialog" aria-labelledby="dailyTitle">
+            <header><span style="font-size:2rem" aria-hidden="true">📅</span><h2 class="o" id="dailyTitle">Daily Rewards</h2></header>
+            <button class="btn g-red x o" id="dailyClose" aria-label="Close">✕</button>
+            <div class="cards" id="dailyCards"></div>
+            <div class="left o1" id="dailyLeft">Your daily reward is ready!</div>
+            <button class="btn g-green o claim" id="dailyClaim">CLAIM</button>
+        </div>
+    </div>
+
+    <div id="offlinePop" class="overlay" hidden>
+        <div class="card" role="dialog" aria-labelledby="offlineTitle2">
+            <h2 class="o" id="offlineTitle2">Welcome back!</h2>
+            <div class="big-ic" aria-hidden="true">🏎️💨</div>
+            <div class="keep" id="offlineText">Your Speed Roller kept running while you were away.</div>
+            <div class="gain o" id="offlineGain">+0 Speed</div>
+            <div class="acts"><button class="btn g-green o" id="offlineOk">Awesome!</button></div>
+        </div>
+    </div>
+
+    <div id="offline" class="overlay" hidden>
+        <div class="card" role="alertdialog" aria-labelledby="offlineTitle">
+            <h2 class="o" id="offlineTitle" style="color:#ff5a6a">Disconnected</h2>
+            <div class="keep">Lost connection to the server. Your progress is saved — rejoin to keep racing.</div>
+            <div class="acts"><button class="btn g-green o" id="reconnectBtn">Rejoin</button></div>
+        </div>
+    </div>
+
+    <div id="start">
+        <div class="loader">
+            <div class="loader-wheel" aria-hidden="true"></div>
+            <div class="logo o">+1 <b>Speed</b><br>Go Kart Escape</div>
+            <div id="loading" class="o1">Loading…</div>
+            <div class="err o1" id="connectErr" hidden></div>
+            <button class="btn g-green o" id="playBtn" hidden>Try again</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://sdk.bloxity.io/v1/legion-sdk.min.js"></script>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
