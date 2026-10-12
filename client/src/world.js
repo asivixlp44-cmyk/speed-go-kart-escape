@@ -1,6 +1,6 @@
 import {
     T, V3, scene, mat, gloss, studMaterial, aabb, solids, kills, triggers, tickers,
-    texFrom, billboard, textPlane, camera, buildRig, mergeRig, mergeChildren, chrome, paint,
+    texFrom, billboard, textPlane, camera, renderer, buildRig, mergeRig, mergeChildren, chrome, paint,
 } from './engine.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -40,11 +40,16 @@ export function cullZones(stage) {
 
 // ----- static geometry, merged per zone and material at the end -----
 const geoBatches = new Map();
+// Merged per zone, material and 300-stud chunk along z: chunks past the render distance (or
+// behind the camera) are skipped by frustum culling instead of drawing a whole stage at once
+const CHUNK = 300;
 function addGeo(zone, geo, material, cast) {
-    const k = zone + '|' + material.uuid + '|' + (cast ? 1 : 0);
+    geo.computeBoundingBox();
+    const chunk = zone < 0 ? 0 : Math.floor((geo.boundingBox.min.z + geo.boundingBox.max.z) / 2 / CHUNK);
+    const k = zone + '|' + chunk + '|' + material.uuid + '|' + (cast ? 1 : 0);
     let b = geoBatches.get(k);
     if (!b) { b = { zone, material, cast, list: [] }; geoBatches.set(k, b); }
-    for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(name)) geo.deleteAttribute(name);
+    for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(name)) geo.deleteAttribute(name);
     if (!geo.index) { const idx = []; for (let i = 0; i < geo.attributes.position.count; i++) idx.push(i); geo.setIndex(idx); }
     b.list.push(geo);
 }
@@ -76,9 +81,18 @@ function studBox(zone, sx, sy, sz, x, y, z, color, o) {
         uv.setXY(i, uv.getX(i) * faces[f][0] / 8, uv.getY(i) * faces[f][1] / 8);
     }
     g.translate(x, y, z);
-    addGeo(zone, g, studMaterial(color, { rough: o.rough, emissive: o.emissive }), o.cast);
+    // Plain studded boxes share one material per roughness (colour in the vertices): far fewer draw calls
+    if (o.emissive) addGeo(zone, g, studMaterial(color, { rough: o.rough, emissive: o.emissive }), o.cast);
+    else { tintGeo(g, color); addGeo(zone, g, studMaterial('vc', { rough: o.rough }), o.cast); }
     if (o.solid !== false) return solid(zone, x, y, z, sx, sy, sz, o.extra);
     return null;
+}
+const tintTmp = new T.Color();
+function tintGeo(g, color) {
+    tintTmp.set(color);
+    const n = g.attributes.position.count, a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { a[i * 3] = tintTmp.r; a[i * 3 + 1] = tintTmp.g; a[i * 3 + 2] = tintTmp.b; }
+    g.setAttribute('color', new T.BufferAttribute(a, 3));
 }
 function plainBox(zone, sx, sy, sz, x, y, z, material, o) {
     o = o || {};
@@ -396,7 +410,8 @@ function buildShowroom(Z) {
         plainBox(Z, 7.5, 0.02, 7.5, x, top + 0.52, z, BLOB_MAT());
         zoneGroup(Z).add(kart);
         const at = new V3(x, top + 1, z);
-        tickers.push((dt) => { if (zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 160 * 160) kart.rotation.y += dt * 0.5; });
+        // Turns while you're near; not drawn at all from far away (its sign still shows)
+        tickers.push((dt) => { kart.visible = zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 130 * 130; if (kart.visible) kart.rotation.y += dt * 0.5; });
         const sp = billboard(kartLines(d), 11, 512, new V3(x, top + 8.5, z), zoneGroup(Z));
         shopItems.push({ kind: 'kart', def: d, sp, sig: '' });
         const tr = aabb(x, top + 2, z, PAD_SIZE - 2, 4, PAD_SIZE - 2); tr.zone = Z;
@@ -436,7 +451,7 @@ function buildSuperShowroom(Z) {
         const beam = new T.Mesh(new T.CylinderGeometry(1.2, 5, 22, 24, 1, true), bm);
         beam.position.set(x, top + 11, z); zoneGroup(Z).add(beam);
         const at = new V3(x, 1, z);
-        tickers.push((dt, t) => { if (zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 170 * 170) { car.rotation.y += dt * 0.45; if (d.prism) ringM.material.color.setHSL((t * 0.15) % 1, 0.9, 0.6).multiplyScalar(2.2); } });
+        tickers.push((dt, t) => { car.visible = beam.visible = zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 140 * 140; if (car.visible) { car.rotation.y += dt * 0.45; if (d.prism) ringM.material.color.setHSL((t * 0.15) % 1, 0.9, 0.6).multiplyScalar(2.2); } });
         const sp = billboard(kartLines(d), 12, 512, new V3(x, top + 9.5, z), zoneGroup(Z));
         shopItems.push({ kind: 'kart', def: d, sp, sig: '' });
         const tr = aabb(x, top + 2, z, 9, 4, 9); tr.zone = Z;
@@ -1718,6 +1733,10 @@ export function buildWorld() {
     flushGeo();
     refreshShop();
     drawEventBoard();
+    // Compile every material's shader now (all zones shown for a moment), so driving into a new
+    // stage doesn't stutter
+    for (const g of zoneGroups.values()) g.visible = true;
+    try { renderer.compile(scene, camera); } catch (e) { /* compiles lazily instead */ }
     cullZones(-1);
 }
 export function stageStart(i) {

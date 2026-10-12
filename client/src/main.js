@@ -11,7 +11,7 @@ import { updateMaterials } from './textures.js';
 import { pad, pollGamepad, rumble, onGamepadConnection } from './gamepad.js';
 import {
     render, setSpeedLines, setSpeedBlur, updateFx, dust, tireSmoke, driftSpark, exhaustFlame, exhaustPuff, wallSparks, sparkleColumn,
-    zapSparks, ring, fireworks, setQuality, makeTrail, addSkid, updateAmbient, flame,
+    zapSparks, ring, fireworks, setQuality, makeTrail, addSkid, updateAmbient, flame, adaptQuality, qualityState,
 } from './fx.js';
 import {
     buildWorld, SPAWN, refreshShop, renderBoards, updateLobbySigns, updateWorld, cullZones, checkpoints, windAt, treadOwned, stageStart,
@@ -594,15 +594,17 @@ class Remote {
         else { r.position.x += (p.x - r.position.x) * k; r.position.y += (p.y - r.position.y) * k; r.position.z += (p.z - r.position.z) * k; }
         const turn = angleDiff(r.rotation.y, p.ry);
         r.rotation.y = lerpAngle(r.rotation.y, p.ry, k);
-        r.visible = p.anim !== 3;
+        // Players far away aren't drawn
+        const d2 = camera.position.distanceToSquared(r.position);
+        r.visible = p.anim !== 3 && d2 < 320 * 320;
         if (p.av !== this.av) this.setAvatar(p.av);
         setKart(r, p.kart, this.label, p.upg);
         setTrail(r, p.trail);
         const fx = p.fx | 0;
         this.steer += (clamp(-turn * 6, -1, 1) - this.steer) * Math.min(1, dt * 8);
         const drift = fx & 1 ? -1 : fx & 2 ? 1 : 0;
-        const near = camera.position.distanceToSquared(r.position) < 220 * 220;
-        animateRacer(r, dt, t, { speed: worldSpeed(p.v || 0), steer: this.steer, drift, air: p.anim === 2, nitro: !!(fx & 4), boost: !!(fx & 8), driftLvl: drift ? 1 : undefined, onGround: p.anim !== 2, near });
+        const near = d2 < 220 * 220;
+        if (r.visible) animateRacer(r, dt, t, { speed: worldSpeed(p.v || 0), steer: this.steer, drift, air: p.anim === 2, nitro: !!(fx & 4), boost: !!(fx & 8), driftLvl: drift ? 1 : undefined, onGround: p.anim !== 2, near });
         r.userData.trail.update(trailPoint(r), Math.abs(p.v || 0) > 8 && r.visible, dt, t);
         if (p.name !== this.labelText) { this.labelText = p.name; this.label.userData.set([{ t: p.name, c: '#ffffff', s: '#141a2e', px: 56 }]); }
     }
@@ -874,10 +876,9 @@ function rayHit(o, d, maxT) {
     }
     return best;
 }
-const camDir = new V3(), camGoal = new V3(), camPos = new V3(), lookTmp = new V3(), lookAt = new V3();
+const camDir = new V3(), camGoal = new V3(), camPos = new V3(), lookAt = new V3();
 const ATTRACT_LOOK = new V3(0, 6, 40);
-let intro = null, baseFov = camera.fov;
-const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+let baseFov = camera.fov;
 const skyTint = new T.Color(FOG), tintTmp = new T.Color();
 let qaCam = null;
 function updateCamera(dt) {
@@ -909,16 +910,8 @@ function updateCamera(dt) {
     cam.distNow = cam.distNow === undefined ? hitD : cam.distNow + (hitD - cam.distNow) * (hitD < cam.distNow ? 1 : 1 - Math.exp(-dt * 4));
     camPos.copy(cam.target).addScaledVector(camDir, cam.distNow);
     lookAt.copy(cam.target);
-    if (intro) {
-        intro.t += dt;
-        const k = ease(Math.min(1, intro.t / intro.dur));
-        camera.position.lerpVectors(intro.from, camPos, k);
-        camera.lookAt(lookTmp.lerpVectors(ATTRACT_LOOK, lookAt, k));
-        if (intro.t >= intro.dur) intro = null;
-    } else {
-        camera.position.copy(camPos);
-        camera.lookAt(lookAt);
-    }
+    camera.position.copy(camPos);
+    camera.lookAt(lookAt);
     if (shake > 0.001) {
         const s = shake * shake * 0.9;
         camera.position.x += (Math.random() * 2 - 1) * s;
@@ -1302,14 +1295,14 @@ function update(dt) {
 // =====================================================================================
 let lastFrame = 0, loadingSignaled = false, fpsAcc = 0, fpsFrames = 0, showFps = false;
 function frame(now) {
-    const dt = Math.min(0.05, (now - (lastFrame || now)) / 1000);
+    const raw = Math.min(0.5, (now - (lastFrame || now)) / 1000), dt = Math.min(0.05, raw);
     fpsAcc += (now - (lastFrame || now)) / 1000; fpsFrames++;
     if (fpsAcc >= 0.5) { if (showFps) $('#fps').textContent = Math.round(fpsFrames / fpsAcc) + ' FPS'; fpsAcc = 0; fpsFrames = 0; }
     lastFrame = now;
     if (!loadingSignaled) { loadingSignaled = true; BX.triggerAllSettings(); }
     pollGamepad();
     padButtons();
-    if (running) update(dt);
+    if (running) { update(dt); adaptQuality(raw); }
     else { for (const fn of tickers) fn(dt, now / 1000); updateWorld(dt, -1); }
     updateCamera(dt);
     render();
@@ -1351,7 +1344,6 @@ async function play() {
         return;
     }
     joining = false;
-    intro = { t: 0, dur: 2.2, from: camera.position.clone() };
     running = true;
     startMusic();
     $('#start').hidden = true;
@@ -1396,7 +1388,7 @@ function wirePortalSettings() {
     const pct = (v) => { const n = parseFloat(String(v)); if (!isFinite(n)) return undefined; return clamp(n > 1 ? n / 100 : n, 0, 1); };
     BX.listenSetting('master_volume', embedded((v) => { const p = pct(v); if (p !== undefined) setVolume('master', p); }));
     BX.listenSetting('music_volume', embedded((v) => { const p = pct(v); if (p !== undefined) setVolume('music', p); }));
-    BX.listenSetting('graphics_quality', embedded((v) => setQuality(v === 'Low' ? 'low' : v === 'Medium' ? 'medium' : 'high')));
+    BX.listenSetting('graphics_quality', embedded((v) => { const q = { Low: 'low', Medium: 'medium', High: 'high' }[v]; if (q) setQuality(q); }));
     BX.listenSetting('camera_sensitivity', embedded((v) => { camSens = clamp(parseFloat(v) || 1, 0.1, 5); }));
     BX.listenSetting('show_fps', (v) => { showFps = v === 'true'; $('#fps').hidden = !showFps; });
 }
@@ -1455,8 +1447,8 @@ if (import.meta.env.DEV) {
         // Runs the game at 60 steps a second without rendering, holding the given input
         // Hazards follow the server clock, so the simulated time moves that clock along too
         sim: (secs, inp) => { Object.assign(botInput, inp || {}); for (let i = 0; i < Math.round(secs * 60); i++) { net.offset += 1000 / 60; update(1 / 60); } Object.assign(botInput, { throttle: 0, steer: 0, hop: false, nitro: false }); return window.__qa.state(); },
-        look: (yaw, pitch, dist) => { cam.yaw = yaw; cam.pitch = pitch; cam.zoom = dist - 15; cam.free = 999; intro = null; },
-        follow: () => { cam.free = 0; cam.zoom = 0; intro = null; }, skipIntro: () => { intro = null; },
+        look: (yaw, pitch, dist) => { cam.yaw = yaw; cam.pitch = pitch; cam.zoom = dist - 15; cam.free = 999; },
+        follow: () => { cam.free = 0; cam.zoom = 0; }, skipIntro: () => {}, quality: () => qualityState(),
         settle: (n) => { for (let i = 0; i < (n || 90); i++) updateCamera(1 / 60); },
         camAt: (p, l) => { qaCam = p ? { pos: new V3(...p), look: new V3(...l) } : null; },
         closeDaily: () => { document.querySelector('#daily').hidden = true; },

@@ -76,7 +76,8 @@ For development run `npm run dev:server` and `npm run dev:client`, then open the
 - Super cars with modern spoked wheels and brake callipers, LED light bars, underglow, a formula car with wings and a halo, a steel wedge, a hover car with pulsing pods and a glass dome, and an iridescent hypercar.
 - Procedural go-karts in 17 styles: plank crates for the starter kart, fibreglass pods, F1 noses with front and rear wings, the excavator's bucket arm, the police light bar, the energy core in a glass dome, the rocket booster, gold and galaxy paint. Clear-coated paint, spinning wheels, front wheels and steering wheel that turn, body roll and squat, underglow on the neon karts. Each kart draws in a few dozen calls (static parts merged).
 - Drift sparks in the mini-turbo colour, tyre smoke, skid marks that fade, nitro and fire flames from the exhausts, trails, speed lines and a radial speed blur, bloom and a colour grade, a sky with drifting clouds that turns to a starry night on the dark stages.
-- Only the stages next to you are drawn and collided with.
+- Performance: only the stages next to you are drawn and collided with; static scenery is merged per material in 300-stud chunks with a 720-stud render distance (far chunks fade into the haze and are not drawn), plain studded boxes share one vertex-coloured material, far players and display cars are hidden, and shaders are compiled at load. **Adaptive quality**: below ~45 FPS the game lowers its resolution (to 55%), then steps down a preset (High → Medium → Low). Medium is the default on desktop, Low on phones; the Bloxity graphics setting still picks the preset.
+- The game starts straight behind your kart (no camera fly-in).
 
 ## Controls
 

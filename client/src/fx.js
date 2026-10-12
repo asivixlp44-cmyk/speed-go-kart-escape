@@ -8,11 +8,11 @@ import { T, V3, $, renderer, scene, camera, sun } from './engine.js';
 // ----- quality presets -----
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 export const QUALITIES = {
-    low: { label: 'Low', ratio: 0.85, shadows: false, bloom: false, shadowMap: 512 },
+    low: { label: 'Low', ratio: 0.75, shadows: false, bloom: false, shadowMap: 512 },
     medium: { label: 'Medium', ratio: 1, shadows: true, bloom: true, shadowMap: 1024 },
-    high: { label: 'High', ratio: 1.5, shadows: true, bloom: true, shadowMap: 2048 },
+    high: { label: 'High', ratio: 1.25, shadows: true, bloom: true, shadowMap: 2048 },
 };
-let quality = isTouch ? 'medium' : 'high';
+let quality = isTouch ? 'low' : 'medium';
 try { quality = localStorage.getItem('gke_quality') || quality; } catch (e) { /* default */ }
 if (!QUALITIES[quality]) quality = 'high';
 
@@ -52,9 +52,15 @@ function buildComposer() {
     gradePass = new ShaderPass(GradeShader);
     composer.addPass(gradePass);
 }
+// Resolution scale picked by adaptQuality (1 = the preset's own)
+let resScale = 1;
+function applyRatio() {
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, QUALITIES[quality].ratio) * resScale);
+    resizeFx();
+}
 function applyQuality() {
     const q = QUALITIES[quality];
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.ratio));
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.ratio) * resScale);
     renderer.shadowMap.enabled = q.shadows;
     sun.castShadow = q.shadows;
     if (sun.shadow.mapSize.x !== q.shadowMap) {
@@ -68,10 +74,28 @@ function applyQuality() {
 export function getQuality() { return quality; }
 export function setQuality(q) {
     if (!QUALITIES[q]) return;
-    quality = q;
+    quality = q; resScale = 1; warm = 0;
     try { localStorage.setItem('gke_quality', q); } catch (e) { /* ignore */ }
     applyQuality();
 }
+// ----- adaptive resolution: keeps the frame rate up on slower machines -----
+// Under ~45 FPS for a couple of seconds it renders fewer pixels (down to 55%, 70% on Low), then steps down a
+// preset (not saved); with room to spare it sharpens back up. A few seconds' grace after any change.
+let fpsAvg = 60, slowT = 0, fastT = 0, warm = 0;
+export function adaptQuality(dt) {
+    if (document.hidden || dt <= 0) return;
+    warm += dt;
+    if (warm < 3) { fpsAvg = 60; slowT = fastT = 0; return; }
+    fpsAvg += (1 / dt - fpsAvg) * Math.min(1, dt * 2);
+    if (fpsAvg < 45) { slowT += dt; fastT = 0; } else if (fpsAvg > 55) { fastT += dt; slowT = 0; } else { slowT = 0; fastT = 0; }
+    if (slowT > 2) {
+        slowT = 0; warm = 1;
+        const minScale = quality === 'low' ? 0.7 : 0.55;
+        if (resScale > minScale + 0.01) { resScale = Math.max(minScale, resScale - 0.15); applyRatio(); }
+        else if (quality !== 'low') { quality = quality === 'high' ? 'medium' : 'low'; resScale = 0.85; applyQuality(); }
+    } else if (fastT > 8 && resScale < 1) { fastT = 0; resScale = Math.min(1, resScale + 0.1); applyRatio(); }
+}
+export const qualityState = () => ({ quality, resScale: +resScale.toFixed(2), ratio: renderer.getPixelRatio(), fps: Math.round(fpsAvg) });
 function resizeFx() {
     if (composer) {
         composer.setPixelRatio(renderer.getPixelRatio());
@@ -93,13 +117,14 @@ export function render() {
 const lines = $('#speedLines');
 const lctx = lines.getContext('2d');
 const streaks = Array.from({ length: 80 }, () => ({ a: Math.random() * Math.PI * 2, r: Math.random(), l: 0.1 + Math.random() * 0.25, w: 1 + Math.random() * 2.5 }));
-let lineAmt = 0, lineColor = '255,255,255';
+let lineAmt = 0, lineColor = '255,255,255', linesDrawn = false;
 export function setSpeedLines(target, dt, nitro) {
     lineAmt += (target - lineAmt) * Math.min(1, dt * 6);
     lineColor = nitro ? '150,230,255' : '255,255,255';
     const w = lines.width, h = lines.height;
+    if (lineAmt < 0.02) { if (linesDrawn) { lctx.clearRect(0, 0, w, h); linesDrawn = false; } return; }
     lctx.clearRect(0, 0, w, h);
-    if (lineAmt < 0.02) return;
+    linesDrawn = true;
     const cx = w / 2, cy = h * 0.46, R = Math.hypot(w, h) / 2;
     lctx.lineCap = 'round';
     for (const s of streaks) {

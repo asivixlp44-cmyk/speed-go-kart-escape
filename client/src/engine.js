@@ -9,14 +9,16 @@ export const hexCss = (h) => '#' + h.toString(16).padStart(6, '0');
 
 // ----- renderer, scene, camera, lights -----
 export const canvas = $('#view');
-export const renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+export const renderer = new T.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
+renderer.setPixelRatio(1);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = T.PCFSoftShadowMap;
+renderer.shadowMap.type = T.PCFShadowMap;
 
 export const scene = new T.Scene();
 export const FOG = 0xbfe0ff;
-scene.fog = new T.Fog(FOG, 320, 1700);
+// Render distance: past ~720 studs things fade into the haze and aren't drawn at all
+export const VIEW_FAR = 720;
+scene.fog = new T.Fog(FOG, 230, VIEW_FAR - 20);
 scene.background = new T.Color(FOG);
 
 // ----- sky: a bright Roblox-blue dome that follows the camera -----
@@ -78,7 +80,7 @@ export function updateSky(pos, t, tint, night, dt) {
 }
 export const SUN_DIRECTION = SUN_DIR;
 
-export const camera = new T.PerspectiveCamera(70, 1, 0.3, 2600);
+export const camera = new T.PerspectiveCamera(70, 1, 0.3, VIEW_FAR);
 function resize() {
     const w = innerWidth, h = innerHeight;
     renderer.setSize(w, h, false);
@@ -217,7 +219,9 @@ export function studMaterial(color, o) {
     const key = 'studpbr|' + color + '|' + (o.rough ?? 0.5) + '|' + (o.emissive || 0);
     let m = matCache.get(key);
     if (!m) {
-        m = new T.MeshStandardMaterial({ color, map: STUD_TEX.map, normalMap: STUD_TEX.nrm, normalScale: new T.Vector2(0.9, 0.9), roughness: o.rough ?? 0.5, metalness: 0 });
+        // color 'vc': one shared material, the colour comes from the geometry (merged static boxes)
+        const vc = color === 'vc';
+        m = new T.MeshStandardMaterial({ color: vc ? 0xffffff : color, vertexColors: vc, map: STUD_TEX.map, normalMap: STUD_TEX.nrm, normalScale: new T.Vector2(0.9, 0.9), roughness: o.rough ?? 0.5, metalness: 0 });
         if (o.emissive) { m.emissive = new T.Color(o.emissive); m.emissiveIntensity = 0.35; }
         matCache.set(key, m);
     }
