@@ -877,7 +877,6 @@ function rayHit(o, d, maxT) {
     return best;
 }
 const camDir = new V3(), camGoal = new V3(), camPos = new V3(), lookAt = new V3();
-const ATTRACT_LOOK = new V3(0, 6, 40);
 let baseFov = camera.fov;
 const skyTint = new T.Color(FOG), tintTmp = new T.Color();
 let qaCam = null;
@@ -885,8 +884,11 @@ function updateCamera(dt) {
     const t = performance.now() / 1000;
     if (qaCam) { camera.position.copy(qaCam.pos); camera.lookAt(qaCam.look); return; }
     if (!running) {
-        camera.position.set(Math.sin(t * 0.08) * 60, 26, Math.cos(t * 0.08) * 50 - 20);
-        camera.lookAt(ATTRACT_LOOK);
+        // Before you join: a still view from exactly where the camera will sit behind your kart, so
+        // nothing moves when you spawn (no fly-in, no orbit)
+        lookAt.set(SPAWN.x, SPAWN.y + 3.1, SPAWN.z + 2);
+        camera.position.set(lookAt.x, lookAt.y + Math.sin(0.25) * 12.5, lookAt.z - Math.cos(0.25) * 12.5);
+        camera.lookAt(lookAt);
         baseFov = camera.fov;
         updateSky(camera.position, t, tintTmp.set(FOG), 0, dt);
         return;
