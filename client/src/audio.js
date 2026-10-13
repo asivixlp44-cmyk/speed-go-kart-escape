@@ -426,9 +426,12 @@ const SFX = {
     boom(t) { tone(t, 'sine', 90, 30, 0.7, 0.6); noise(t, 0.8, 'lowpass', 900, 0.8, 0.55, sfxBus); noise(t, 0.25, 'highpass', 2500, 0.8, 0.2, sfxBus); },
     beep(t) { tone(t, 'square', midi(69), null, 0.22, 0.12); tone(t, 'sine', midi(81), null, 0.25, 0.06); },
     go(t) { tone(t, 'square', midi(81), null, 0.5, 0.14); tone(t, 'sine', midi(93), null, 0.55, 0.08); whoosh(t + 0.05, 500, 3000, 0.5, 0.2); },
+    orb(t, k) { const n = 84 + Math.min(14, (k || 1) - 1) * 1; tone(t, 'sine', midi(n), null, 0.14, 0.11); tone(t + 0.035, 'triangle', midi(n + 7), null, 0.16, 0.07); },
+    trick(t) { whoosh(t, 700, 3200, 0.4, 0.26); tone(t, 'triangle', 380, 900, 0.25, 0.08); },
+    trickDone(t) { tone(t, 'square', midi(88), null, 0.12, 0.06); tone(t + 0.06, 'square', midi(95), null, 0.16, 0.06); },
     best(t) { [84, 88, 91, 96, 100, 103].forEach((n, i) => tone(t + i * 0.06, 'square', midi(n), null, 0.25, 0.07)); },
 };
-export function sfx(name) {
+export function sfx(name, arg) {
     if (!ctx || !SFX[name] || settings.sfx <= 0) return;
-    SFX[name](ctx.currentTime + 0.005);
+    SFX[name](ctx.currentTime + 0.005, arg);
 }

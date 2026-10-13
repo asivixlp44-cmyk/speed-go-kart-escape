@@ -341,11 +341,11 @@ export function animateKart(g, dt, o) {
     }
     u.steerWheel.rotation.z = -u.steer * 1.4;
     const f = Math.min(1, Math.abs(speed) / 40);
-    const rollT = o.air ? 0 : -u.steer * f * 0.07 + (o.drift || 0) * 0.06;
+    const rollT = o.air ? 0 : -u.steer * f * 0.09 + (o.drift || 0) * 0.07;
     const pitchT = o.air ? -0.06 : clampN((o.accel || 0) * -0.0016, -0.06, 0.05);
-    u.roll += (rollT - u.roll) * Math.min(1, dt * 8);
+    u.roll += (rollT - u.roll) * Math.min(1, dt * 6);
     u.pitch += (pitchT - u.pitch) * Math.min(1, dt * 6);
-    const rumble = u.hover ? 0.35 + Math.sin(u.phase * 2.4) * 0.12 : Math.abs(speed) > 1 ? Math.sin(u.phase * 70) * 0.02 : Math.sin(u.phase * 40) * 0.012;
+    const rumble = u.hover ? 0.35 + Math.sin(u.phase * 2.4) * 0.12 : Math.abs(speed) > 1 ? Math.sin(u.phase * 9) * 0.02 : Math.sin(u.phase * 6) * 0.01;
     u.inner.rotation.z = u.roll;
     u.inner.rotation.x = u.pitch;
     u.inner.position.y = rumble;

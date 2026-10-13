@@ -62,6 +62,7 @@ export class KartRoom extends Room {
         on('chat', this.onChat);
         on('friends', this.onFriends);
         on('died', this.onDied);
+        on('orb', this.onOrb);
 
         this.setSimulationInterval((dt) => this.tick(dt), 100);
         this.clock.setInterval(() => this.broadcastBoards(), 10000);
@@ -99,7 +100,7 @@ export class KartRoom extends Room {
         this.state.players.set(client.sessionId, player);
         this.sessions.set(client.sessionId, {
             client, profile, player,
-            moving: false, lastMove: 0, gainT: 0, friends: 0, treadMult: 0, treadSeen: 0,
+            moving: false, lastMove: 0, gainT: 0, friends: 0, treadMult: 0, treadSeen: 0, orbTok: CFG.orbRate * 2, orbAt: Date.now(), orbSeen: new Map(),
             joinedAt: Date.now(), freeClaimed: {}, cooldowns: new Map(), guest, lastChat: 0, padArmed: true,
             stats: {
                 fresh: Date.now() - (profile.firstPlay || 0) < 60000, maxStage: -1, pads: {}, deaths: {}, causes: {}, buys: 0,
@@ -148,6 +149,23 @@ export class KartRoom extends Room {
             level0: st.level0, level1: p.level, wins0: st.wins0, wins1: p.totalWins, rebirths: p.rebirths - st.rebirths0,
             bloxity: p.uid.startsWith('legion_'),
         }).catch((e) => console.warn('[stats]', e.message));
+    }
+    // A Speed Orb picked up: rate-limited (a token bucket) and each orb only once per respawn
+    onOrb(client, m) {
+        const s = this.sessions.get(client.sessionId);
+        const id = m.i | 0;
+        if (!s || id < 0 || id > 100000) return;
+        const now = Date.now();
+        s.orbTok = Math.min(CFG.orbRate * 2, s.orbTok + (now - s.orbAt) / 1000 * CFG.orbRate);
+        s.orbAt = now;
+        const last = s.orbSeen.get(id);
+        if (s.orbTok < 1 || (last && now - last < (CFG.orbRespawn - 2) * 1000)) return;
+        s.orbTok -= 1;
+        s.orbSeen.set(id, now);
+        if (s.orbSeen.size > 600) for (const [k, t] of s.orbSeen) if (now - t > CFG.orbRespawn * 1000) s.orbSeen.delete(k);
+        s.stats.orbs = (s.stats.orbs || 0) + 1;
+        this.addSpeed(s, CFG.orbSpeed, true);
+        this.syncPublic(client.sessionId);
     }
     onDied(client, m) {
         const s = this.sessions.get(client.sessionId);

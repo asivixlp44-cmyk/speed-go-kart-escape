@@ -200,6 +200,62 @@ const signs = {};
 export function treadOwned(def) { return def.cost === 0 && !def.daily ? true : !!S.treads[def.id]; }
 const LOBBY_FLOOR = 0xb8bccb, LOBBY_WALL = 0x34405e, LOBBY_STRIPE = 0xff5a1e;
 
+// =====================================================================================
+// Speed Orbs: glowing orbs along the racing line - through the gaps, down the run-up and in the
+// air over the big jump. Drive through one for +Speed (the server adds it); back after a while.
+// =====================================================================================
+const orbs = [];            // { id, x, y, z, zone, until }
+const orbMeshes = new Map(); // zone -> { core, ring, list }
+function orb(zone, x, y, z) { orbs.push({ id: orbs.length, x, y, z, zone, until: 0 }); }
+function orbLine(zone, x0, z0, x1, z1, n, y) { for (let k = 0; k < n; k++) { const f = n > 1 ? k / (n - 1) : 0; orb(zone, x0 + (x1 - x0) * f, y || 2.3, z0 + (z1 - z0) * f); } }
+function buildOrbMeshes() {
+    const coreGeo = new T.IcosahedronGeometry(0.85, 0), ringGeo = new T.TorusGeometry(1.35, 0.13, 6, 20);
+    const coreM = new T.MeshBasicMaterial({ color: new T.Color(0.55, 1.5, 2.4), toneMapped: false });
+    const ringM = new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.7, 0.4), toneMapped: false });
+    const byZone = new Map();
+    for (const o of orbs) { if (!byZone.has(o.zone)) byZone.set(o.zone, []); byZone.get(o.zone).push(o); }
+    for (const [zone, list] of byZone) {
+        const core = new T.InstancedMesh(coreGeo, coreM, list.length), ring = new T.InstancedMesh(ringGeo, ringM, list.length);
+        core.frustumCulled = ring.frustumCulled = false;
+        zoneGroup(zone).add(core, ring);
+        orbMeshes.set(zone, { core, ring, list });
+    }
+    // placed from the start (they spin once you are near)
+    for (const zone of orbMeshes.keys()) updateOrbs(0, zone);
+}
+const orbObj = new T.Object3D();
+// Spin and bob the orbs near you; picked-up ones are hidden until they come back
+export function updateOrbs(t, stage) {
+    for (const [zone, m] of orbMeshes) {
+        if (!(zone === -1 ? stage <= 0 : Math.abs(zone - Math.max(0, stage)) <= 1)) continue;
+        m.list.forEach((o, i) => {
+            const on = o.until <= t, s = on ? 1 : 0;
+            orbObj.position.set(o.x, o.y + Math.sin(t * 3 + o.id) * 0.25, o.z);
+            orbObj.rotation.set(t * 1.3 + o.id, t * 2 + o.id, 0);
+            orbObj.scale.setScalar(s);
+            orbObj.updateMatrix();
+            m.core.setMatrixAt(i, orbObj.matrix);
+            orbObj.rotation.set(Math.PI / 2, 0, t * 2.5 + o.id);
+            orbObj.updateMatrix();
+            m.ring.setMatrixAt(i, orbObj.matrix);
+        });
+        m.core.instanceMatrix.needsUpdate = true; m.ring.instanceMatrix.needsUpdate = true;
+    }
+}
+// The orbs the kart (at p, its middle about 1.3 up) is touching
+export function collectOrbs(p, t, stage) {
+    const got = [];
+    for (const [zone, m] of orbMeshes) {
+        if (!(zone === -1 ? stage <= 0 : Math.abs(zone - Math.max(0, stage)) <= 1)) continue;
+        for (const o of m.list) {
+            if (o.until > t) continue;
+            const dx = p.x - o.x, dz = p.z - o.z, dy = p.y + 1.3 - o.y;
+            if (dx * dx + dz * dz < 3.4 * 3.4 && Math.abs(dy) < 3.2) { o.until = t + CFG.orbRespawn; got.push(o); }
+        }
+    }
+    return got;
+}
+
 function buildLobby() {
     const Z = -1;
     const g = zoneGroup(Z);
@@ -1259,6 +1315,7 @@ const SEC = {
             // green stripes on the floor lead into the gap
             band(c, z - 6, 6, gx - open / 2 + 1, gx + open / 2 - 1, 0x46ec50, 0xffffff);
             cone(c.Z, gx - open / 2 - 1.2, z - 2.5); cone(c.Z, gx + open / 2 + 1.2, z - 2.5);
+            orbLine(c.Z, gx, z - 8, gx, z + 6, 3);
             if (i % 2 === 0) boostPad(c, gx, z + Math.min(14, step * 0.3), Math.min(10, open - 4), 8);
         }
     },
@@ -1455,6 +1512,7 @@ const SEC = {
             // roadblock: police cars nose to tail across the road, the gap marked in green
             roadblock(c, -HW, x0, z); roadblock(c, x1, HW, z);
             band(c, z - 8, 8, x0 + 1, x1 - 1, 0x46ec50, 0xffffff);
+            orbLine(c.Z, gx, z - 10, gx, z + 6, 3);
             if (i % 2 === 0) boostPad(c, gx, z + 16, 8, 8);
         }
         // the end of the chase: blue & white line, the cops give up here
@@ -1473,6 +1531,7 @@ const SEC = {
                 list.push({ x, z });
             }
             band(c, z - 7, 5, gx - open / 2 + 2, gx + open / 2 - 2, 0x46ec50, 0xffffff);
+            orbLine(c.Z, gx, z - 8, gx, z + 6, 3);
         }
         mineField(c, list);
     },
@@ -1685,11 +1744,13 @@ function buildStage(s) {
     // Entry straight with the first checkpoint
     road(c0, s.zS, s.secs[0].a);
     checkpoint(Z, s, 0, s.zS + ENTRY - 10, SEC_INFO[s.secs[0].type]);
+    orbLine(Z, 0, s.zS + 8, 0, s.zS + ENTRY - 4, 4);
     s.secs.forEach((sec, k) => {
         SEC[sec.type]({ ...c0, a: sec.a, b: sec.b, d: sec.d });
         if (k < s.secs.length - 1) {
             road(c0, sec.b, sec.b + REST);
             checkpoint(Z, s, k + 1, sec.b + REST / 2, SEC_INFO[s.secs[k + 1].type]);
+            orbLine(Z, 0, sec.b + 5, 0, sec.b + REST - 5, 3);
         }
     });
     // Run-up, the big jump, the landing
@@ -1710,6 +1771,13 @@ function buildStage(s) {
     }
     ramp(c0, s.ramp0, -HW, HW, s.need);
     pit(c0, s.lip, s.land);
+    // Orbs down the middle of the run-up, then along the flight path of a kart at the jump's speed
+    orbLine(Z, 0, s.runup0 + 16, 0, s.ramp0 - 6, Math.max(3, Math.floor((s.ramp0 - s.runup0 - 22) / 10)));
+    {
+        const w = worldSpeed(s.need), z0 = s.lip + 2.4;
+        for (const tf of [0.14, 0.28, 0.42, 0.56]) orb(Z, 0, RAMP.h + RAMP.vy * tf - 0.5 * CFG.grav * tf * tf + 1.3, z0 + w * tf);
+    }
+    orbLine(Z, 0, s.land + 10, 0, s.land + 40, 4);
     road(c0, s.land, s.e0);
     checkpoint(Z, s, n + 1, s.land + 18, SEC_INFO.finish);
     endZone(c0);
@@ -1735,6 +1803,9 @@ export function buildWorld() {
     drawEventBoard();
     // Compile every material's shader now (all zones shown for a moment), so driving into a new
     // stage doesn't stutter
+    // Speed Orbs down the lobby road to Stage 1
+    orbLine(-1, 0, SPAWN.z + 16, 0, LOBBY.z1 - 10, 11);
+    buildOrbMeshes();
     for (const g of zoneGroups.values()) g.visible = true;
     try { renderer.compile(scene, camera); } catch (e) { /* compiles lazily instead */ }
     cullZones(-1);

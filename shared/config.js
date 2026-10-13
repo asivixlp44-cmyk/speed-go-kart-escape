@@ -20,6 +20,11 @@ export const CFG = {
     hopV: 26,
     // Speed is earned every gainInterval while you drive
     gainInterval: 0.35,
+    // Speed Orbs on the track: each one is worth this much Speed (times your multipliers); they come
+    // back after orbRespawn seconds. The server takes at most orbRate a second.
+    orbSpeed: 2,
+    orbRespawn: 20,
+    orbRate: 6,
     moveMin: 3,
     respawnDelay: 1.3,
     shieldTime: 1.5,

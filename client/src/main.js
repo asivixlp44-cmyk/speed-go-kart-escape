@@ -14,7 +14,7 @@ import {
     zapSparks, ring, fireworks, setQuality, makeTrail, addSkid, updateAmbient, flame, adaptQuality, qualityState,
 } from './fx.js';
 import {
-    buildWorld, SPAWN, refreshShop, renderBoards, updateLobbySigns, updateWorld, cullZones, checkpoints, windAt, treadOwned, stageStart,
+    buildWorld, SPAWN, collectOrbs, updateOrbs, refreshShop, renderBoards, updateLobbySigns, updateWorld, cullZones, checkpoints, windAt, treadOwned, stageStart,
     buildKart, animateKart, showroomPads, superPads, makeCopCar, chases,
 } from './world.js';
 import {
@@ -36,7 +36,7 @@ const P = {
     drift: 0, driftT: 0, driftLvl: 0, boostT: 0, boostPow: 1, nitro: 1, nitroOn: false, nitroIdle: 0,
     dead: false, deadT: 0, deadCause: '', shield: 0, stage: -1, moving: false, lockToastT: -9,
     cp: { stage: -1, k: 0 }, padLock: false, lastRamp: null, launchT: -9, bumpT: 0, accel: 0,
-    renderY: SPAWN.y, visYaw: 0, squash: 1, squashV: 0, lap: null, hopHeld: false, hopPress: -9,
+    renderY: SPAWN.y, visYaw: 0, yawVel: 0, trick: null, trickDone: 0, rampAir: false, squash: 1, squashV: 0, lap: null, hopHeld: false, hopPress: -9,
     countdown: 0, gasAt: -9,
 };
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -204,7 +204,7 @@ function teleport(pos, yaw) {
     if (chase.zone) endChase(false);
     chase.escaped = null;
     P.pos.copy(pos); P.vx = P.vy = P.vz = 0; P.speed = 0; P.drift = 0; P.driftT = 0; P.boostT = 0;
-    P.yaw = yaw || 0; P.visYaw = P.yaw; cam.yaw = P.yaw + Math.PI; cam.free = 0;
+    P.yaw = yaw || 0; P.visYaw = P.yaw; P.yawVel = 0; P.trick = null; P.trickDone = 0; P.rampAir = false; cam.yaw = P.yaw + Math.PI; cam.free = 0;
     // The camera jumps with you (instead of flying across the map to catch up)
     cam.target.set(pos.x, pos.y + 3.1, pos.z); cam.distNow = undefined;
     P.renderY = pos.y;
@@ -589,9 +589,14 @@ class Remote {
     }
     update(p, dt, t) {
         const r = this.rig;
-        const k = 1 - Math.exp(-dt * 12);
-        if ((r.position.x - p.x) ** 2 + (r.position.z - p.z) ** 2 + (r.position.y - p.y) ** 2 > 2500) r.position.set(p.x, p.y, p.z);
-        else { r.position.x += (p.x - r.position.x) * k; r.position.y += (p.y - r.position.y) * k; r.position.z += (p.z - r.position.z) * k; }
+        const k = 1 - Math.exp(-dt * 14);
+        // Dead reckoning: between updates (~15 a second) the kart carries on along its heading at its
+        // speed, so it glides instead of stepping
+        if (p.x !== this.lx || p.y !== this.ly || p.z !== this.lz) { this.lx = p.x; this.ly = p.y; this.lz = p.z; this.since = 0; } else this.since = (this.since || 0) + dt;
+        const lead = p.anim === 3 ? 0 : worldSpeed(p.v || 0) * Math.min(0.15, this.since);
+        const tx = p.x + Math.sin(p.ry) * lead, tz = p.z + Math.cos(p.ry) * lead;
+        if ((r.position.x - tx) ** 2 + (r.position.z - tz) ** 2 + (r.position.y - p.y) ** 2 > 2500) r.position.set(tx, p.y, tz);
+        else { r.position.x += (tx - r.position.x) * k; r.position.y += (p.y - r.position.y) * k; r.position.z += (tz - r.position.z) * k; }
         const turn = angleDiff(r.rotation.y, p.ry);
         r.rotation.y = lerpAngle(r.rotation.y, p.ry, k);
         // Players far away aren't drawn
@@ -601,6 +606,8 @@ class Remote {
         setKart(r, p.kart, this.label, p.upg);
         setTrail(r, p.trail);
         const fx = p.fx | 0;
+        this.trickT = fx & 16 ? Math.min(1, (this.trickT || 0) + dt / TRICK_TIME) : 0;
+        trickPose(r, this.trickT ? { t: this.trickT, kind: 'roll', dir: 1 } : null, r.rotation.y);
         this.steer += (clamp(-turn * 6, -1, 1) - this.steer) * Math.min(1, dt * 8);
         const drift = fx & 1 ? -1 : fx & 2 ? 1 : 0;
         const near = d2 < 220 * 220;
@@ -617,6 +624,52 @@ class Remote {
 }
 const trailTmp = new V3();
 function trailPoint(r) { return trailTmp.set(r.position.x - Math.sin(r.rotation.y) * 3.6, r.position.y + 1.3, r.position.z - Math.cos(r.rotation.y) * 3.6); }
+
+// =====================================================================================
+// Air tricks and Speed Orbs
+// =====================================================================================
+const TRICKS = ['roll', 'flip', 'spin'], TRICK_TIME = 0.42;
+let trickN = 0, trickHints = 0;
+try { trickHints = +(localStorage.getItem('gke_trickhints') || 0); } catch (e) { /* none */ }
+const easeIO = (k) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2);
+// Turns a kart about its middle (1.2 up) for a barrel roll, a front flip or a flat spin
+function trickPose(g, tk, yaw) {
+    const k = g.userData.kart;
+    if (!k) return;
+    const a = tk ? easeIO(Math.min(1, tk.t)) * Math.PI * 2 * tk.dir : 0, h = 1.2;
+    k.rotation.z = tk && tk.kind === 'roll' ? a : 0;
+    if (tk && tk.kind === 'flip') k.rotation.x -= Math.abs(a);
+    g.rotation.y = yaw + (tk && tk.kind === 'spin' ? a : 0);
+    if (tk && tk.kind === 'roll') k.position.set(h * Math.sin(a), h - h * Math.cos(a), 0);
+    else if (tk && tk.kind === 'flip') k.position.set(0, h - h * Math.cos(a), -h * Math.sin(-Math.abs(a)));
+    else k.position.set(0, 0, 0);
+}
+// Landing: each finished trick is a turbo; landing in the middle of one is just a wobble
+function landTrick(top) {
+    const n = P.trickDone;
+    if (P.trick) { P.trick = null; addShake(0.25); P.squashV -= 6; }
+    P.trickDone = 0;
+    if (!n) return;
+    try { localStorage.setItem('gke_trickhints', String(Math.max(trickHints, 3))); } catch (e) { /* ignore */ }
+    const secs = 0.8 + 0.35 * n, pw = 1.25 + 0.08 * n;
+    P.boostT = Math.max(P.boostT, secs); P.boostPow = Math.max(P.boostT > secs ? P.boostPow : 1, pw);
+    P.speed = Math.max(P.speed, top * pw * 0.95);
+    sfx('turbo' + Math.min(3, n + 1)); flashBoost(); addShake(0.2 + 0.08 * n); rumble(0.6, 160);
+    floatText(n === 1 ? 'TRICK! 🔥' : n === 2 ? 'DOUBLE TRICK! 🔥' : 'TRIPLE TRICK! 🔥🔥', '#ffd028', P.pos.clone().add(new V3(0, 6.5, 0)), 4.8);
+    ring(P.pos, 0xffd028, 8, 0.4);
+}
+// A Speed Orb: chime (higher for a streak), sparkle, and the server adds the Speed
+let orbStreak = 0, orbT = -9;
+function gotOrb(o) {
+    orbStreak = clockT - orbT < 1.6 ? orbStreak + 1 : 1;
+    orbT = clockT;
+    sfx('orb', orbStreak);
+    const at = new V3(o.x, o.y, o.z);
+    ring(at, 0x5ad8ff, 3.2, 0.3);
+    dust(at, 5, 1.2, 0x9ae8ff);
+    if (orbStreak >= 5 && orbStreak % 5 === 0) floatText('ORB STREAK x' + orbStreak + '!', '#ffd028', P.pos.clone().add(new V3(0, 8, 0)), 4);
+    net.send('orb', { i: o.id });
+}
 
 // "+1 ⚡" pops up beside the kart every time Speed goes up, like the reference
 let speedSeen = false, popT = 0, popAcc = 0;
@@ -699,7 +752,7 @@ function sendMove(force) {
     const now = performance.now();
     if (!force && now - lastMoveSent < 66) return;
     const a = P.dead ? 3 : !P.onGround ? 2 : P.moving ? 1 : 0;
-    const f = (P.drift < 0 ? 1 : 0) | (P.drift > 0 ? 2 : 0) | (P.nitroOn ? 4 : 0) | (P.boostT > 0 ? 8 : 0);
+    const f = (P.drift < 0 ? 1 : 0) | (P.drift > 0 ? 2 : 0) | (P.nitroOn ? 4 : 0) | (P.boostT > 0 ? 8 : 0) | (P.trick ? 16 : 0);
     const m = { x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2), ry: +P.visYaw.toFixed(3), a, mv: P.moving ? 1 : 0, f, v: +P.speed.toFixed(1) };
     const key = m.x + ',' + m.y + ',' + m.z + ',' + m.ry + ',' + a + ',' + m.mv + ',' + f + ',' + m.v;
     if (!force && key === lastMoveKey && now - lastMoveSent < 500) return;
@@ -893,18 +946,19 @@ function updateCamera(dt) {
         updateSky(camera.position, t, tintTmp.set(FOG), 0, dt);
         return;
     }
-    const top = Math.max(20, topSpeed()), sp = Math.abs(P.speed), f = clamp(sp / 120, 0, 1);
+    // f: how fast you really are (0 at a crawl, 1 at the last stage's speed)
+    const sp = Math.abs(P.speed), f = clamp((worldSpeed(sp) - 15) / 55, 0, 1);
     // Chase: the camera swings behind the kart (and a little into a drift) unless you're looking around
     cam.free -= dt;
     if (cam.free <= 0 && !P.dead) {
         const behind = P.yaw + Math.PI + P.drift * 0.22;
-        const rate = P.speed < -3 ? 1.2 : 3.4 + f * 4;
+        const rate = P.speed < -3 ? 1.2 : 2.6 + f * 2.2;
         cam.yaw = lerpAngle(cam.yaw, behind, 1 - Math.exp(-dt * rate));
         cam.pitch += ((0.25 - f * 0.07 + (P.onGround ? 0 : 0.06) + chase.close * 0.2) - cam.pitch) * (1 - Math.exp(-dt * 2));
     }
-    const fwdX = Math.sin(P.yaw), fwdZ = Math.cos(P.yaw);
+    const fwdX = Math.sin(P.visYaw), fwdZ = Math.cos(P.visYaw);
     camGoal.set(P.pos.x + fwdX * (2 + f * 6), P.renderY + 3.1, P.pos.z + fwdZ * (2 + f * 6));
-    cam.target.lerp(camGoal, 1 - Math.exp(-dt * 14));
+    cam.target.lerp(camGoal, 1 - Math.exp(-dt * 10));
     const dist = clamp(13 + f * 7 + cam.zoom, 6, 60);
     const cp = Math.cos(cam.pitch);
     camDir.set(Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), Math.cos(cam.yaw) * cp);
@@ -1050,6 +1104,7 @@ function update(dt) {
 
     // Hazards move first, so hits line up with what you see
     updateWorld(dt, P.stage);
+    updateOrbs(clockT, P.stage);
     if (!qaFreeze) updateChase(dt);
 
     const top = topSpeed();
@@ -1068,24 +1123,30 @@ function update(dt) {
         // ----- throttle, brakes, reverse -----
         const prevSpeed = P.speed;
         if (P.onGround) {
-            // Up to top speed in about half a second; ice and boosts change that
-            const accel = Math.max(44, top * 2.2) * (mult > 1 ? 1.4 : 1) * (ice ? 0.45 : 1);
+            // Worked out in real (world) speed, so the kart rolls off the line instead of lurching:
+            // strong pull at first, easing in near the top, about 0.7 s to top speed
+            const topW = worldSpeed(top), targetW = worldSpeed(target);
+            let ws = worldSpeed(P.speed);
+            const k = clamp(Math.abs(ws) / Math.max(1, topW * mult), 0, 1);
+            const accel = Math.max(16, topW * 1.9) * (1 - 0.55 * k * k) * (mult > 1 ? 1.4 : 1) * (ice ? 0.45 : 1);
             if (inp.throttle > 0.05 || mult > 1.01 && inp.throttle >= 0) {
-                const th = Math.max(inp.throttle, mult > 1.01 ? 1 : 0);
-                if (P.speed < 0) P.speed = Math.min(0, P.speed + top * 3.5 * dt);
-                else if (P.speed < target * th) P.speed = Math.min(target * th, P.speed + accel * th * dt);
-                else P.speed += (target * th - P.speed) * (1 - Math.exp(-dt * 1.6));
+                const th = Math.max(inp.throttle, mult > 1.01 ? 1 : 0), want = targetW * th;
+                if (ws < 0) ws = Math.min(0, ws + Math.max(20, topW * 3) * dt);
+                else if (ws < want) ws = Math.min(want, ws + accel * th * dt);
+                else ws += (want - ws) * (1 - Math.exp(-dt * 1.6));
+                P.speed = ws === want ? target * th : speedFromWorld(ws);
             } else if (inp.throttle < -0.05) {
-                if (P.speed > 0.5) P.speed = Math.max(0, P.speed - Math.max(50, top * 3) * -inp.throttle * dt * (ice ? 0.35 : 1));
-                else P.speed = Math.max(-Math.max(12, top * 0.45), P.speed - Math.max(20, top * 0.8) * -inp.throttle * dt);
+                if (ws > 0.3) ws = Math.max(0, ws - Math.max(26, topW * 2.4) * -inp.throttle * dt * (ice ? 0.35 : 1));
+                else ws = Math.max(-Math.max(8, topW * 0.45), ws - Math.max(12, topW * 0.9) * -inp.throttle * dt);
+                P.speed = speedFromWorld(ws);
             } else {
-                P.speed *= Math.exp(-dt * (ice ? 0.15 : 0.55));
-                if (Math.abs(P.speed) < 0.4) P.speed = 0;
+                ws *= Math.exp(-dt * (ice ? 0.15 : 0.7));
+                P.speed = Math.abs(ws) < 0.3 ? 0 : speedFromWorld(ws);
             }
         }
         P.accel = (P.speed - prevSpeed) / Math.max(dt, 1e-4);
         // ----- steering and drifting -----
-        P.steer += (inp.steer - P.steer) * (1 - Math.exp(-dt * 13));
+        P.steer += (inp.steer - P.steer) * (1 - Math.exp(-dt * 9));
         // Sharp at low speed, calmer near top speed, so it feels the same at any level
         const f = clamp(Math.abs(P.speed) / Math.max(25, top), 0, 1.3);
         let rate = (2.9 - 1.15 * Math.min(1, f)) * grip;
@@ -1098,6 +1159,17 @@ function update(dt) {
             P.vy = CFG.hopV; P.onGround = false; P.ground = null;
             sfx('hop'); P.squashV += 4;
         }
+        // Air tricks: tap HOP while flying off a ramp for a roll, a flip or a spin; land it for a boost
+        if (clockT - P.hopPress < 0.15 && !P.onGround && P.rampAir && P.airTime > 0.06 && !P.trick && P.trickDone < 3) {
+            P.hopPress = -9;
+            P.trick = { t: 0, kind: TRICKS[(P.trickDone + trickN++) % TRICKS.length], dir: Math.abs(P.steer) > 0.3 ? -Math.sign(P.steer) : (trickN % 2 ? 1 : -1) };
+            sfx('trick'); addShake(0.08);
+        }
+        if (P.trick) {
+            P.trick.t += dt / TRICK_TIME;
+            if (P.trick.t >= 1) { P.trick = null; P.trickDone++; sfx('trickDone'); }
+        }
+        let yawTarget = 0;
         const canDrift = P.onGround && inp.hop && Math.abs(P.speed) > top * 0.35 && P.speed > 0;
         if (!P.drift && canDrift && Math.abs(inp.steer) > 0.3) { P.drift = Math.sign(inp.steer); P.driftT = 0; P.driftLvl = 0; sfx('drift'); }
         if (P.drift) {
@@ -1112,23 +1184,26 @@ function update(dt) {
                 P.drift = 0; P.driftT = 0; P.driftLvl = 0;
             } else {
                 const into = clamp(P.steer * P.drift, -1, 1);
-                P.yaw -= P.drift * rate * (0.55 + 0.45 * (1 + into)) * dt;
+                yawTarget = -P.drift * rate * (0.55 + 0.45 * (1 + into));
                 if (P.onGround) P.driftT += dt * (0.8 + 0.2 * grip) * (0.7 + 0.3 * (1 + into) / 2);
                 const lvl = P.driftT >= DRIFT_LEVELS[2] ? 3 : P.driftT >= DRIFT_LEVELS[1] ? 2 : P.driftT >= DRIFT_LEVELS[0] ? 1 : 0;
                 if (lvl > P.driftLvl) { P.driftLvl = lvl; sfx('drift'); }
                 P.speed *= Math.exp(-dt * 0.1);
             }
-        } else if (P.onGround) P.yaw -= P.steer * rate * dir * dt;
-        else P.yaw -= P.steer * rate * 0.35 * dir * dt;
+        } else if (P.onGround) yawTarget = -P.steer * rate * dir;
+        else yawTarget = -P.steer * rate * 0.35 * dir;
         // Track assist: on the stages, let go of the steering and the kart lines up with the track
         if (P.stage >= 0 && !P.drift && Math.abs(inp.steer) < 0.1 && P.speed > 3 && P.onGround) {
             const off = angleDiff(P.yaw, 0);
-            if (Math.abs(off) < 1.4) P.yaw += off * (1 - Math.exp(-dt * 2.6));
+            if (Math.abs(off) < 1.4) yawTarget += off * 2.6;
         }
+        // The turn rate eases in and out (no twitch when you tap a key or let go)
+        P.yawVel += (yawTarget - P.yawVel) * (1 - Math.exp(-dt * 12));
+        P.yaw += P.yawVel * dt;
         // ----- velocity: grip pulls it toward where the kart points (ice barely does) -----
         const nfx = Math.sin(P.yaw), nfz = Math.cos(P.yaw);
         if (P.onGround) {
-            const gr = ice ? 1.1 : P.drift ? 5 : 14 * Math.min(1.4, grip);
+            const gr = ice ? 1.1 : P.drift ? 5 : 11 * Math.min(1.4, grip);
             const k = 1 - Math.exp(-dt * gr);
             const ws = worldSpeed(P.speed);
             P.vx += (nfx * ws - P.vx) * k;
@@ -1163,7 +1238,8 @@ function update(dt) {
                 const rem = dt * (n - 1 - i) / n;
                 P.vy = RAMP.vy - GRAV * rem; vy = RAMP.vy - GRAV * rem / 2;
                 P.onGround = false; P.ground = null;
-                P.lastRamp = onRamp; P.launchT = clockT;
+                P.lastRamp = onRamp; P.launchT = clockT; P.rampAir = true;
+                if (trickHints < 3) { trickHints++; hint(isTouch ? 'Tap HOP in the air for a TRICK! 🔥' : 'Press SPACE in the air for a TRICK! 🔥', 2.2); }
                 // Too slow for this jump: it comes up short
                 const lf = launchFactor(P.speed, onRamp.need);
                 if (lf < 1) { P.vx *= lf; P.vz *= lf; vx *= lf; vz *= lf; }
@@ -1182,8 +1258,9 @@ function update(dt) {
             const into = Math.abs(hitX ? P.vx : 0) + Math.abs(hitZ ? P.vz : 0);
             // Side walls: slide along them, losing a little speed; a wall ahead: bounce back
             if (hitX) { P.vx = -P.vx * 0.1; P.vz *= Math.exp(-dt * 1.2); }
-            if (hitZ) P.vz = -P.vz * 0.15;
-            if (hitX && !hitZ) { const want = P.vz >= 0 ? 0 : Math.PI; P.yaw = lerpAngle(P.yaw, want, 0.12); }
+            if (hitZ) P.vz = -P.vz * 0.08;
+            P.yawVel *= 0.6;
+            if (hitX && !hitZ) { const want = P.vz >= 0 ? 0 : Math.PI; P.yaw = lerpAngle(P.yaw, want, 1 - Math.exp(-dt * 7)); }
             if (into > 14 && clockT - P.bumpT > 0.3) {
                 P.bumpT = clockT;
                 sfx('bump'); addShake(Math.min(0.6, into / 80)); rumble(Math.min(1, into / 60), 120);
@@ -1202,6 +1279,8 @@ function update(dt) {
                 P.squashV -= Math.min(10, 3 + P.airTime * 7);
                 if (P.airTime > 0.7) { ring(P.pos, 0xffffff, 6, 0.45); addShake(0.35); rumble(0.5, 140); }
             }
+            if (P.trickDone > 0 || P.trick) landTrick(top);
+            P.rampAir = false;
             P.airTime = 0;
         } else P.airTime += dt;
         P.moving = (Math.abs(P.speed) > CFG.moveMin) || !!(training && onRoller);
@@ -1218,6 +1297,7 @@ function update(dt) {
             if (!k.active) continue;
             if (k.test ? k.test(P.pos) : (k.max.x > P.pos.x - HW + 0.4 && k.min.x < P.pos.x + HW - 0.4 && k.max.y > P.pos.y + 0.05 && k.min.y < P.pos.y + 3.6 && k.max.z > P.pos.z - HW + 0.4 && k.min.z < P.pos.z + HW - 0.4)) { die(k.cause); break; }
         }
+        if (!P.dead) for (const o of collectOrbs(P.pos, clockT, P.stage)) gotOrb(o);
         for (const tr of nearTriggers) {
             const inside = overlapsBox(tr, P.pos);
             if (inside && !tr.inside && tr.enter) tr.enter();
@@ -1258,6 +1338,7 @@ function update(dt) {
         const pitchT = onRamp ? -Math.atan2(RAMP.h, RAMP.len) : !P.onGround ? clamp(-P.vy * 0.008, -0.35, 0.35) : 0;
         u.pitchX = (u.pitchX || 0) + (pitchT - (u.pitchX || 0)) * (1 - Math.exp(-dt * 8));
         u.kart.rotation.x = u.pitchX;
+        trickPose(rig, P.trick, P.visYaw);
         animateRacer(rig, dt, t, { speed: worldSpeed(P.speed), steer: P.drift ? P.drift * 0.6 + P.steer * 0.4 : P.steer, drift: P.drift, air: !P.onGround, accel: P.accel, nitro: P.nitroOn, boost: P.boostT > 0, driftLvl: P.driftLvl, onGround: P.onGround });
         u.trail.update(trailPoint(rig).setY(P.renderY + 1.3), Math.abs(P.speed) > 8 && !P.dead, dt, t);
         // Skid marks from the rear wheels while drifting or braking hard
