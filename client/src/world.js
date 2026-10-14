@@ -13,7 +13,7 @@ import { emitTread } from './fx.js';
 import { S, actions, net } from './state.js';
 import {
     CFG, LOBBY, STAGES, STAGE_W, LANE_X, RAMP, PAD, SUMMIT, SHOWROOM, SUPERCARS, TREADMILLS, TREAD_GEO, TRAILS, kartById,
-    fmt, clock, rngFrom, eventState, maxSpeedOf, gapFor, runupFor, ENTRY, REST, worldSpeed,
+    fmt, clock, rngFrom, eventState, maxSpeedOf, gapFor, runupFor, ENTRY, REST, worldSpeed, recText,
 } from '../../shared/config.js';
 
 const HW = STAGE_W / 2;                 // 30: half the corridor width
@@ -208,20 +208,23 @@ const orbs = [];            // { id, x, y, z, zone, until }
 const orbMeshes = new Map(); // zone -> { core, ring, list }
 function orb(zone, x, y, z) { orbs.push({ id: orbs.length, x, y, z, zone, until: 0 }); }
 function orbLine(zone, x0, z0, x1, z1, n, y) { for (let k = 0; k < n; k++) { const f = n > 1 ? k / (n - 1) : 0; orb(zone, x0 + (x1 - x0) * f, y || 2.3, z0 + (z1 - z0) * f); } }
-function buildOrbMeshes() {
-    const coreGeo = new T.IcosahedronGeometry(0.85, 0), ringGeo = new T.TorusGeometry(1.35, 0.13, 6, 20);
-    const coreM = new T.MeshBasicMaterial({ color: new T.Color(0.55, 1.5, 2.4), toneMapped: false });
-    const ringM = new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.7, 0.4), toneMapped: false });
-    const byZone = new Map();
-    for (const o of orbs) { if (!byZone.has(o.zone)) byZone.set(o.zone, []); byZone.get(o.zone).push(o); }
-    for (const [zone, list] of byZone) {
-        const core = new T.InstancedMesh(coreGeo, coreM, list.length), ring = new T.InstancedMesh(ringGeo, ringM, list.length);
-        core.frustumCulled = ring.frustumCulled = false;
-        zoneGroup(zone).add(core, ring);
-        orbMeshes.set(zone, { core, ring, list });
+let orbKit = null;
+function buildOrbMeshes(zone) {
+    const list = orbs.filter((o) => o.zone === zone);
+    if (!list.length || orbMeshes.has(zone)) return;
+    if (!orbKit) {
+        orbKit = {
+            core: new T.IcosahedronGeometry(0.85, 0), ring: new T.TorusGeometry(1.35, 0.13, 6, 20),
+            coreM: new T.MeshBasicMaterial({ color: new T.Color(0.55, 1.5, 2.4), toneMapped: false }),
+            ringM: new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.7, 0.4), toneMapped: false }),
+        };
     }
+    const core = new T.InstancedMesh(orbKit.core, orbKit.coreM, list.length), ring = new T.InstancedMesh(orbKit.ring, orbKit.ringM, list.length);
+    core.frustumCulled = ring.frustumCulled = false;
+    zoneGroup(zone).add(core, ring);
+    orbMeshes.set(zone, { core, ring, list });
     // placed from the start (they spin once you are near)
-    for (const zone of orbMeshes.keys()) updateOrbs(0, zone);
+    updateOrbs(0, zone);
 }
 const orbObj = new T.Object3D();
 // Spin and bob the orbs near you; picked-up ones are hidden until they come back
@@ -458,16 +461,19 @@ function buildShowroom(Z) {
         const x = r.x, z = -92 + k * 17, top = r.y;
         roundBox(Z, PAD_SIZE, 0.5, PAD_SIZE, x, top + 0.25, z, gloss(0xe8283a, { rough: 0.4 }), 0.3);
         glowBox(Z, PAD_SIZE + 0.3, 0.12, PAD_SIZE + 0.3, x, top + 0.04, z, 0xff4a5a, 1.3);
-        const kart = buildKart(d, { static: true });
-        kart.position.set(x, top + 0.5, z);
-        kart.rotation.y = Math.PI / 2 + 0.6;
-        // Display karts don't cast real shadows (16 of them would double the lobby's draw calls): a soft blob instead
-        kart.traverse((o) => { o.castShadow = false; });
         plainBox(Z, 7.5, 0.02, 7.5, x, top + 0.52, z, BLOB_MAT());
-        zoneGroup(Z).add(kart);
-        const at = new V3(x, top + 1, z);
-        // Turns while you're near; not drawn at all from far away (its sign still shows)
-        tickers.push((dt) => { kart.visible = zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 130 * 130; if (kart.visible) kart.rotation.y += dt * 0.5; });
+        // The model itself is built a moment later (queued), so the game starts sooner
+        buildQueue.push(() => {
+            const kart = buildKart(d, { static: true });
+            kart.position.set(x, top + 0.5, z);
+            kart.rotation.y = Math.PI / 2 + 0.6;
+            // Display karts don't cast real shadows (16 of them would double the lobby's draw calls): a soft blob instead
+            kart.traverse((o) => { o.castShadow = false; });
+            zoneGroup(Z).add(kart);
+            const at = new V3(x, top + 1, z);
+            // Turns while you're near; not drawn at all from far away (its sign still shows)
+            tickers.push((dt) => { kart.visible = zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 130 * 130; if (kart.visible) kart.rotation.y += dt * 0.5; });
+        });
         const sp = billboard(kartLines(d), 11, 512, new V3(x, top + 8.5, z), zoneGroup(Z));
         shopItems.push({ kind: 'kart', def: d, sp, sig: '' });
         const tr = aabb(x, top + 2, z, PAD_SIZE - 2, 4, PAD_SIZE - 2); tr.zone = Z;
@@ -497,17 +503,20 @@ function buildSuperShowroom(Z) {
         cyl(Z, 5.6, 5.8, 0.4, x, top + 0.2, z, gloss(0x22242e, { rough: 0.2, clear: true }), 40);
         const ringM = new T.Mesh(new T.TorusGeometry(5.7, 0.16, 8, 48), d.prism ? new T.MeshBasicMaterial({ color: 0xffffff }) : glowMat(d.glow || d.accent, 1.6));
         ringM.rotation.x = Math.PI / 2; ringM.position.set(x, top + 0.42, z); zoneGroup(Z).add(ringM);
-        const car = buildKart(d, { static: true });
-        car.position.set(x, top + 0.4, z);
-        car.rotation.y = Math.PI + 0.5;
-        car.traverse((o) => { o.castShadow = false; });
-        zoneGroup(Z).add(car);
         // a soft light cone from above
         const bm = new T.MeshBasicMaterial({ color: d.glow || 0xffffff, transparent: true, opacity: 0.05, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, toneMapped: false });
         const beam = new T.Mesh(new T.CylinderGeometry(1.2, 5, 22, 24, 1, true), bm);
         beam.position.set(x, top + 11, z); zoneGroup(Z).add(beam);
-        const at = new V3(x, 1, z);
-        tickers.push((dt, t) => { car.visible = beam.visible = zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 140 * 140; if (car.visible) { car.rotation.y += dt * 0.45; if (d.prism) ringM.material.color.setHSL((t * 0.15) % 1, 0.9, 0.6).multiplyScalar(2.2); } });
+        // the car itself is built a moment later (queued)
+        buildQueue.push(() => {
+            const car = buildKart(d, { static: true });
+            car.position.set(x, top + 0.4, z);
+            car.rotation.y = Math.PI + 0.5;
+            car.traverse((o) => { o.castShadow = false; });
+            zoneGroup(Z).add(car);
+            const at = new V3(x, 1, z);
+            tickers.push((dt, t) => { car.visible = beam.visible = zoneGroup(Z).visible && camera.position.distanceToSquared(at) < 140 * 140; if (car.visible) { car.rotation.y += dt * 0.45; if (d.prism) ringM.material.color.setHSL((t * 0.15) % 1, 0.9, 0.6).multiplyScalar(2.2); } });
+        });
         const sp = billboard(kartLines(d), 12, 512, new V3(x, top + 9.5, z), zoneGroup(Z));
         shopItems.push({ kind: 'kart', def: d, sp, sig: '' });
         const tr = aabb(x, top + 2, z, 9, 4, 9); tr.zone = Z;
@@ -1621,7 +1630,7 @@ function stageGate(s) {
     x.lineJoin = 'round'; x.lineWidth = 16; x.strokeStyle = 'rgba(20,26,46,0.85)'; x.strokeText(s.name.toUpperCase(), 512, 200);
     x.fillStyle = '#ffffff'; x.fillText(s.name.toUpperCase(), 512, 200);
     x.font = '700 64px Fredoka, sans-serif'; x.lineWidth = 10; x.strokeText(s.sub, 512, 320); x.fillStyle = '#ffd028'; x.fillText(s.sub, 512, 320);
-    if (s.entry) { x.font = '700 50px Fredoka, sans-serif'; x.lineWidth = 9; x.strokeText('Recommended ⚡ ' + s.need + ' Speed', 512, 410); x.fillStyle = '#7dff6b'; x.fillText('Recommended ⚡ ' + s.need + ' Speed', 512, 410); }
+    if (s.entry) { x.font = '700 50px Fredoka, sans-serif'; x.lineWidth = 9; x.strokeText(recText(s.need), 512, 410); x.fillStyle = '#7dff6b'; x.fillText(recText(s.need), 512, 410); }
     const m = new T.Mesh(new T.PlaneGeometry(STAGE_W, 24), new T.MeshBasicMaterial({ map: texFrom(cv), transparent: true, depthWrite: false, side: T.DoubleSide, toneMapped: false }));
     m.position.set(0, 12, z); m.rotation.y = Math.PI; zoneGroup(Z).add(m);
     roundBox(Z, STAGE_W + 4, 2.4, 3, 0, 25, z, gloss(th.gate, { rough: 0.3 }), 0.6);
@@ -1795,22 +1804,42 @@ export function windAt(p) {
     for (const w of winds) if (p.z >= w.z0 && p.z <= w.z1) return w.push;
     return 0;
 }
+// =====================================================================================
+// Building the world. The lobby and Stage 1 are built up front; the display cars and the other
+// stages are queued and built one piece at a time (buildMore) while the game connects, so it
+// starts sooner. ensureStage builds a stage on the spot if you get there first.
+// =====================================================================================
+const buildQueue = [], builtStages = new Set();
+let onGrow = null;
+export function onWorldGrow(fn) { onGrow = fn; }
+function buildStageNow(i) {
+    if (builtStages.has(i)) return;
+    builtStages.add(i);
+    buildStage(STAGES[i]);
+    flushGeo();
+    buildOrbMeshes(i);
+    if (onGrow) onGrow(i);
+}
+export function ensureStage(i) { if (i >= 0 && i < STAGES.length) buildStageNow(i); }
+// One queued piece; true while there's more to build
+export function buildMore() { const job = buildQueue.shift(); if (job) job(); return buildQueue.length > 0; }
+export function buildAll() { while (buildQueue.length) buildQueue.shift()(); }
 export function buildWorld() {
     buildLobby();
-    STAGES.forEach((s) => buildStage(s));
-    flushGeo();
-    refreshShop();
-    drawEventBoard();
-    // Compile every material's shader now (all zones shown for a moment), so driving into a new
-    // stage doesn't stutter
     // Speed Orbs down the lobby road to Stage 1
     orbLine(-1, 0, SPAWN.z + 16, 0, LOBBY.z1 - 10, 11);
-    buildOrbMeshes();
+    buildOrbMeshes(-1);
+    buildStageNow(0);
+    refreshShop();
+    drawEventBoard();
+    // Compile the shaders now (all zones shown for a moment), so the first stage doesn't stutter
     for (const g of zoneGroups.values()) g.visible = true;
     try { renderer.compile(scene, camera); } catch (e) { /* compiles lazily instead */ }
     cullZones(-1);
+    for (let i = 1; i < STAGES.length; i++) buildQueue.push(() => buildStageNow(i));
 }
 export function stageStart(i) {
+    ensureStage(i);
     const cp = checkpoints[i][0];
     return { pos: cp ? cp.pos.clone() : new V3(0, 0.5, STAGES[i].zS + 20), yaw: 0 };
 }

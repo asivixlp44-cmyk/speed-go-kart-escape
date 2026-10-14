@@ -1,117 +1,88 @@
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { T, V3, $, renderer, scene, camera, sun } from './engine.js';
 
-// ----- quality presets -----
+// =====================================================================================
+// Rendering quality. The scene is drawn straight to the screen with MSAA (no bloom or grading
+// passes): sharp at the screen's own resolution, like the original, and far cheaper.
+//   low: 1x, no shadows - medium: up to 1.5x, shadows - high: up to 2x, finer shadows
+// The game picks the preset by frame rate (adaptQuality), never above the one chosen in the
+// settings (the cap).
+// =====================================================================================
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 export const QUALITIES = {
-    low: { label: 'Low', ratio: 0.75, shadows: false, bloom: false, shadowMap: 512 },
-    medium: { label: 'Medium', ratio: 1, shadows: true, bloom: true, shadowMap: 1024 },
-    high: { label: 'High', ratio: 1.25, shadows: true, bloom: true, shadowMap: 2048 },
+    low: { label: 'Low', ratio: 1, shadows: false, shadowMap: 512 },
+    medium: { label: 'Medium', ratio: 1.5, shadows: true, shadowMap: 1024 },
+    high: { label: 'High', ratio: 2, shadows: true, shadowMap: 2048 },
 };
-let quality = isTouch ? 'low' : 'medium';
-try { quality = localStorage.getItem('gke_quality') || quality; } catch (e) { /* default */ }
-if (!QUALITIES[quality]) quality = 'high';
+const ORDER = ['low', 'medium', 'high'], rank = (q) => ORDER.indexOf(q);
+const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { /* private mode */ } return null; };
+let cap = QUALITIES[store('gke_qcap')] ? store('gke_qcap') : 'high';
+let quality = QUALITIES[store('gke_qauto')] ? store('gke_qauto') : isTouch ? 'low' : 'medium';
+if (rank(quality) > rank(cap)) quality = cap;
 
 renderer.toneMapping = T.NeutralToneMapping;
-renderer.toneMappingExposure = 1.02;
+renderer.toneMappingExposure = 1.06;
 
-// Final grade after tone mapping: punchier saturation and contrast, a soft vignette, and a
-// radial speed blur at the screen edges that grows with your speed (uBlur)
-const GradeShader = {
-    uniforms: { tDiffuse: { value: null }, uSat: { value: 1.14 }, uContrast: { value: 1.06 }, uVignette: { value: 0.22 }, uBlur: { value: 0 } },
-    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform sampler2D tDiffuse; uniform float uSat; uniform float uContrast; uniform float uVignette; uniform float uBlur; varying vec2 vUv;
-        void main() {
-            vec2 q = vUv - vec2(0.5, 0.48);
-            vec4 c = texture2D(tDiffuse, vUv);
-            if (uBlur > 0.001) {
-                float k = smoothstep(0.18, 0.7, length(q)) * uBlur;
-                vec4 acc = c;
-                for (int i = 1; i <= 6; i++) acc += texture2D(tDiffuse, vUv - q * k * 0.035 * float(i));
-                c = acc / 7.0;
-            }
-            float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-            vec3 col = mix(vec3(l), c.rgb, uSat);
-            col = (col - 0.5) * uContrast + 0.5;
-            col *= 1.0 - uVignette * smoothstep(0.35, 0.85, length(q * vec2(1.0, 0.85)) * 1.25);
-            gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
-        }`,
-};
-
-let composer = null, bloomPass = null, gradePass = null;
-function buildComposer() {
-    composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    bloomPass = new UnrealBloomPass(new T.Vector2(innerWidth / 2, innerHeight / 2), 0.34, 0.38, 1.85);
-    composer.addPass(bloomPass);
-    composer.addPass(new OutputPass());
-    gradePass = new ShaderPass(GradeShader);
-    composer.addPass(gradePass);
-}
-// Resolution scale picked by adaptQuality (1 = the preset's own)
-let resScale = 1;
+// Resolution scale: only below 1 as a last resort on Low
+let resScale = 1, shadowsOn = null;
 function applyRatio() {
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, QUALITIES[quality].ratio) * resScale);
     resizeFx();
 }
 function applyQuality() {
     const q = QUALITIES[quality];
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, q.ratio) * resScale);
-    renderer.shadowMap.enabled = q.shadows;
+    applyRatio();
     sun.castShadow = q.shadows;
     if (sun.shadow.mapSize.x !== q.shadowMap) {
         sun.shadow.mapSize.set(q.shadowMap, q.shadowMap);
         if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     }
-    scene.traverse((o) => { if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((x) => { x.needsUpdate = true; }); } });
-    if (q.bloom && !composer) buildComposer();
-    resizeFx();
+    // Turning shadows on or off changes every lit shader; a size change doesn't
+    if (shadowsOn !== q.shadows) {
+        shadowsOn = q.shadows;
+        renderer.shadowMap.enabled = q.shadows;
+        scene.traverse((o) => { if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((x) => { x.needsUpdate = true; }); } });
+    }
 }
 export function getQuality() { return quality; }
-export function setQuality(q) {
+// From the settings: the highest preset to use. fromPlatform: the Bloxity setting (not saved here).
+export function setQuality(q, fromPlatform) {
     if (!QUALITIES[q]) return;
-    quality = q; resScale = 1; warm = 0;
-    try { localStorage.setItem('gke_quality', q); } catch (e) { /* ignore */ }
+    cap = q;
+    if (!fromPlatform) { quality = q; store('gke_qcap', q); } else if (rank(quality) > rank(q)) quality = q;
+    failed.clear(); resScale = 1; warm = 0;
     applyQuality();
 }
-// ----- adaptive resolution: keeps the frame rate up on slower machines -----
-// Under ~45 FPS for a couple of seconds it renders fewer pixels (down to 55%, 70% on Low), then steps down a
-// preset (not saved); with room to spare it sharpens back up. A few seconds' grace after any change.
+// ----- adaptive quality -----
+// Under ~45 FPS for 2 s: one preset down (and that one isn't tried again this visit); at Low it
+// lowers the resolution a little (75% at most). Steady 60 FPS for 6 s: one preset up, up to the cap.
+// The preset it settles on is where the next visit starts.
 let fpsAvg = 60, slowT = 0, fastT = 0, warm = 0;
+const failed = new Set();
 export function adaptQuality(dt) {
     if (document.hidden || dt <= 0) return;
     warm += dt;
     if (warm < 3) { fpsAvg = 60; slowT = fastT = 0; return; }
     fpsAvg += (1 / dt - fpsAvg) * Math.min(1, dt * 2);
-    if (fpsAvg < 45) { slowT += dt; fastT = 0; } else if (fpsAvg > 55) { fastT += dt; slowT = 0; } else { slowT = 0; fastT = 0; }
+    if (fpsAvg < 45) { slowT += dt; fastT = 0; } else if (fpsAvg > 56) { fastT += dt; slowT = 0; } else { slowT = 0; fastT = 0; }
     if (slowT > 2) {
-        slowT = 0; warm = 1;
-        const minScale = quality === 'low' ? 0.7 : 0.55;
-        if (resScale > minScale + 0.01) { resScale = Math.max(minScale, resScale - 0.15); applyRatio(); }
-        else if (quality !== 'low') { quality = quality === 'high' ? 'medium' : 'low'; resScale = 0.85; applyQuality(); }
-    } else if (fastT > 8 && resScale < 1) { fastT = 0; resScale = Math.min(1, resScale + 0.1); applyRatio(); }
-}
-export const qualityState = () => ({ quality, resScale: +resScale.toFixed(2), ratio: renderer.getPixelRatio(), fps: Math.round(fpsAvg) });
-function resizeFx() {
-    if (composer) {
-        composer.setPixelRatio(renderer.getPixelRatio());
-        composer.setSize(innerWidth, innerHeight);
-        bloomPass.resolution.set(innerWidth / 2, innerHeight / 2);
+        slowT = 0; warm = 0;
+        if (quality !== 'low') { failed.add(quality); quality = ORDER[rank(quality) - 1]; resScale = 1; applyQuality(); store('gke_qauto', quality); }
+        else if (resScale > 0.76) { resScale = Math.max(0.75, resScale - 0.125); applyRatio(); }
+    } else if (fastT > 6) {
+        fastT = 0;
+        const up = ORDER[rank(quality) + 1];
+        if (resScale < 1) { resScale = Math.min(1, resScale + 0.125); applyRatio(); warm = 0; }
+        else if (up && rank(up) <= rank(cap) && !failed.has(up)) { quality = up; applyQuality(); store('gke_qauto', quality); warm = 0; }
     }
+}
+export const qualityState = () => ({ quality, cap, resScale: +resScale.toFixed(2), ratio: renderer.getPixelRatio(), fps: Math.round(fpsAvg) });
+function resizeFx() {
     lines.width = Math.round(innerWidth * Math.min(devicePixelRatio || 1, 1.5));
     lines.height = Math.round(innerHeight * Math.min(devicePixelRatio || 1, 1.5));
 }
 addEventListener('resize', resizeFx);
 
-export function setSpeedBlur(v) { if (gradePass) gradePass.uniforms.uBlur.value = v; }
-export function render() {
-    if (QUALITIES[quality].bloom && composer) composer.render();
-    else renderer.render(scene, camera);
-}
+export function render() { renderer.render(scene, camera); }
 
 // ----- speed lines (2D overlay) -----
 const lines = $('#speedLines');

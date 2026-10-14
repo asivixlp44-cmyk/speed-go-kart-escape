@@ -9,7 +9,7 @@ export const hexCss = (h) => '#' + h.toString(16).padStart(6, '0');
 
 // ----- renderer, scene, camera, lights -----
 export const canvas = $('#view');
-export const renderer = new T.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
+export const renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', stencil: false });
 renderer.setPixelRatio(1);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = T.PCFShadowMap;

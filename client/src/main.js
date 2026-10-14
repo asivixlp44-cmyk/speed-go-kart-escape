@@ -10,11 +10,11 @@ import { createAvatar, loadBase, packAvatar, unpackAvatar, avatarStats } from '.
 import { updateMaterials } from './textures.js';
 import { pad, pollGamepad, rumble, onGamepadConnection } from './gamepad.js';
 import {
-    render, setSpeedLines, setSpeedBlur, updateFx, dust, tireSmoke, driftSpark, exhaustFlame, exhaustPuff, wallSparks, sparkleColumn,
+    render, setSpeedLines, updateFx, dust, tireSmoke, driftSpark, exhaustFlame, exhaustPuff, wallSparks, sparkleColumn,
     zapSparks, ring, fireworks, setQuality, makeTrail, addSkid, updateAmbient, flame, adaptQuality, qualityState,
 } from './fx.js';
 import {
-    buildWorld, SPAWN, collectOrbs, updateOrbs, refreshShop, renderBoards, updateLobbySigns, updateWorld, cullZones, checkpoints, windAt, treadOwned, stageStart,
+    buildWorld, buildMore, buildAll, ensureStage, onWorldGrow, SPAWN, collectOrbs, updateOrbs, refreshShop, renderBoards, updateLobbySigns, updateWorld, cullZones, checkpoints, windAt, treadOwned, stageStart,
     buildKart, animateKart, showroomPads, superPads, makeCopCar, chases,
 } from './world.js';
 import {
@@ -154,6 +154,7 @@ function buildPlayer(kit, skin) {
 // ----- collision against the solids near the kart -----
 let near = solids, nearKills = kills, nearTriggers = triggers, nearZoneKey = '';
 function refreshNear(stage) {
+    for (let i = stage - 1; i <= stage + 1; i++) ensureStage(i);
     const zs = new Set([stage - 1, stage, stage + 1]);
     if (stage <= 0) zs.add(-1);
     const key = [...zs].join(',');
@@ -1356,7 +1357,6 @@ function update(dt) {
         rig.visible = !P.dead && (P.shield <= 0 || Math.floor(t * 12) % 2 === 0);
         const fsp = Math.abs(P.speed), wsp = worldSpeed(fsp);
         setSpeedLines(!P.dead && (wsp > 34 || P.nitroOn || P.boostT > 0) && !reduceMotion ? (P.nitroOn ? 1 : P.boostT > 0 ? 0.8 : 0.45) : 0, dt, P.nitroOn);
-        setSpeedBlur(reduceMotion ? 0 : clamp((wsp - 26) / 110, 0, 0.45) + (P.nitroOn ? 0.25 : 0));
         setEngine(!P.dead, fsp / Math.max(20, top), Math.max(0, inp.throttle), P.drift ? 1 : 0, P.nitroOn ? 1 : 0);
     }
     updateSpeedo(P.speed, maxSpeedOf(S), P.nitro, P.nitroOn, P.drift ? Math.max(0.5, P.driftLvl) : 0);
@@ -1471,7 +1471,7 @@ function wirePortalSettings() {
     const pct = (v) => { const n = parseFloat(String(v)); if (!isFinite(n)) return undefined; return clamp(n > 1 ? n / 100 : n, 0, 1); };
     BX.listenSetting('master_volume', embedded((v) => { const p = pct(v); if (p !== undefined) setVolume('master', p); }));
     BX.listenSetting('music_volume', embedded((v) => { const p = pct(v); if (p !== undefined) setVolume('music', p); }));
-    BX.listenSetting('graphics_quality', embedded((v) => { const q = { Low: 'low', Medium: 'medium', High: 'high' }[v]; if (q) setQuality(q); }));
+    BX.listenSetting('graphics_quality', embedded((v) => { const q = { Low: 'low', Medium: 'medium', High: 'high' }[v]; if (q) setQuality(q, true); }));
     BX.listenSetting('camera_sensitivity', embedded((v) => { camSens = clamp(parseFloat(v) || 1, 0.1, 5); }));
     BX.listenSetting('show_fps', (v) => { showFps = v === 'true'; $('#fps').hidden = !showFps; });
 }
@@ -1501,6 +1501,8 @@ async function boot() {
     BX.loadingStep('Loading fonts…');
     try { await Promise.race([Promise.all([document.fonts.load('700 40px Fredoka'), document.fonts.load('800 40px Montserrat')]), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* fallback font */ }
     BX.loadingStep('Building the speedway…');
+    // A new stage changes what's around you: collide with it and show it
+    onWorldGrow(() => { nearZoneKey = ''; refreshNear(P.stage); });
     buildWorld();
     refreshNear(-1);
     loadBase().catch(() => {});
@@ -1518,6 +1520,9 @@ async function boot() {
     unlockAudioOnGesture();
     requestAnimationFrame(frame);
     play();
+    // The rest of the world, a piece at a time, between frames (and while the game connects)
+    const pump = () => { if (buildMore()) setTimeout(pump, 0); };
+    setTimeout(pump, 0);
 }
 boot();
 
@@ -1539,7 +1544,7 @@ if (import.meta.env.DEV) {
         send: (type, msg) => net.send(type, msg),
         hop: () => { P.hopPress = clockT; },
         freeze: (on) => { qaFreeze = !!on; },
-        actions, worldSpeed, chase: () => ({ on: !!chase.zone, cops: chase.cops.length, gap: chase.cops.length ? chase.path[chase.path.length - 1].s - chase.cops[0].s : null }), superPads,
+        actions, worldSpeed, buildAll, chase: () => ({ on: !!chase.zone, cops: chase.cops.length, gap: chase.cops.length ? chase.path[chase.path.length - 1].s - chase.cops[0].s : null }), superPads,
         state: () => ({ x: P.pos.x, y: P.pos.y, z: P.pos.z, yaw: P.yaw, speed: P.speed, dead: P.dead, stage: P.stage, wins: S.wins, level: S.level, xp: S.xp, maxStage: S.maxStage, onGround: P.onGround, drift: P.drift, driftLvl: P.driftLvl, nitro: P.nitro }),
     };
 }

@@ -81,6 +81,10 @@ export const upg = (p, k) => (p && p.upg && p.upg[k]) || 0;
 export const baseSpeedFor = (L, R) => Math.min(CFG.kartCap, CFG.kartBase + CFG.kartPerLevel * Math.max(1, L || 1) + CFG.kartPerRebirth * (R || 0));
 export const kartSpeedFor = (L, R, eng) => Math.round(baseSpeedFor(L, R) * (1 + 0.05 * (eng || 0)));
 export const maxSpeedOf = (p) => kartSpeedFor(p.level, p.rebirths, upg(p, 'engine'));
+// Stage gates say 'Recommended Level N' like the original: the level whose kart speed (no rebirths or
+// upgrades) clears the stage's jump; past the max level it's the Speed number instead
+export const recLevel = (need) => Math.max(1, Math.ceil((need - CFG.kartBase) / CFG.kartPerLevel));
+export const recText = (need) => (recLevel(need) <= CFG.maxLevel ? 'Recommended Level ' + recLevel(need) : 'Recommended ⚡ ' + need + ' Speed');
 export const rebirthLevel = (R) => Math.min(CFG.rebirthCap, CFG.rebirthBase + CFG.rebirthInc * (R || 0));
 export const rebirthMult = (R) => 1 + CFG.rebirthStep * (R || 0);
 export const rebirthWinsMult = (R) => 1 + CFG.rebirthWins * (R || 0);

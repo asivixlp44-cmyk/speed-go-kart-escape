@@ -7,7 +7,7 @@ import { checkpoints } from './world.js';
 import {
     CFG, STAGES, KARTS, kartById, TREADMILLS, TRAILS, BOOSTS, FREE, DAILY, QUESTS, UPGRADES,
     xpFor, maxSpeedOf, kartSpeedFor, rebirthLevel, rebirthMult, multipliers, eventState, levelCost, packAmount, packCost,
-    upgradeCost, upg, questProgress, dailyStatus, rewardText, fmt, fmt1, clock, clock3, clamp, trailById, lapTime,
+    upgradeCost, upg, questProgress, dailyStatus, rewardText, fmt, fmt1, clock, clock3, clamp, trailById, lapTime, recText, recLevel,
 } from '../../shared/config.js';
 
 const W = (n) => '🏆 ' + fmt(n);
@@ -244,7 +244,7 @@ export function showStageTitle(s) {
     $('#stageName').textContent = s.name.toUpperCase();
     const sub = $('#stageSub'); sub.textContent = s.sub || ''; sub.style.color = css(s.theme.accent === 0x141a2e ? 0xffd028 : s.theme.trim === 0x22222a ? 0xffd028 : s.theme.accent);
     const ok = maxSpeedOf(S) >= s.need;
-    const rec = $('#stageRec'); rec.textContent = 'Recommended ⚡ ' + s.need + ' Speed' + (ok ? ' ✓' : ' (you: ' + maxSpeedOf(S) + ')'); rec.style.color = ok ? '#7dff6b' : '#ffb04a';
+    const rec = $('#stageRec'); rec.textContent = recText(s.need) + (ok ? ' ✓' : recLevel(s.need) <= CFG.maxLevel ? ' (you: Level ' + S.level + ')' : ' (you: ' + maxSpeedOf(S) + ')'); rec.style.color = ok ? '#7dff6b' : '#ffb04a';
     const t = $('#stageTitle'); t.style.opacity = 1;
     t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
     clearTimeout(titleTimer);
